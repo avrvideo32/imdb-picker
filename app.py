@@ -16,12 +16,20 @@ st.set_page_config(page_title="IMDb Picker", page_icon="🎬", layout="wide", in
 @st.cache_resource
 def get_connection():
     con = duckdb.connect(':memory:')
-    # Pointing to your local parquet file for now
-    parquet_path = "https://huggingface.co/datasets/Avrozavr/Imdb/resolve/main/imdb_cache.parquet"
-    if not Path(parquet_path).exists():
-        st.error(f"Database not found at {parquet_path}. Please run the desktop app once to generate it!")
-        st.stop()
-    con.execute(f"CREATE VIEW movie_view AS SELECT * FROM read_parquet('{parquet_path}')")
+    
+    # Your Hugging Face URL
+    parquet_url = "https://huggingface.co/datasets/Avrozavr/Imdb/resolve/main/imdb_cache.parquet"
+    
+    # Install and load the extension that allows DuckDB to read files over HTTPS
+    try:
+        con.execute("INSTALL httpfs;")
+        con.execute("LOAD httpfs;")
+    except Exception:
+        pass  # It might already be loaded in newer DuckDB versions
+        
+    # Create the view directly from the URL (No local Path check needed!)
+    con.execute(f"CREATE VIEW movie_view AS SELECT * FROM read_parquet('{parquet_url}')")
+    
     return con
 
 
