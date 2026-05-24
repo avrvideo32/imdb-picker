@@ -8,7 +8,6 @@ from utils import (
 )
 
 # --- PAGE CONFIG ---
-# 'centered' layout is much better for mobile screens than 'wide'
 st.set_page_config(page_title="IMDb Picker", page_icon="🎬", layout="centered", initial_sidebar_state="expanded")
 
 # --- DATABASE CONNECTION ---
@@ -49,9 +48,27 @@ with st.sidebar.expander("Categories"):
 # --- MAIN AREA ---
 st.title("🎲 IMDb Picker")
 
-# Mobile friendly layout: Full width slider and big button
-num_picks = st.slider("How many picks?", 1, 50, 8)
-generate_btn = st.button("🎲 Generate Picks", type="primary", use_container_width=True)
+# Increased max to 100 for "Top 100" style lists
+num_picks = st.slider("How many picks?", 1, 100, 8)
+
+# Sorting dictionary mapping UI text to safe DuckDB SQL clauses
+SORT_OPTIONS = {
+    "Random (Default)": "random()",
+    "Rating (High to Low)": "averageRating DESC NULLS LAST",
+    "Rating (Low to High)": "averageRating ASC NULLS LAST",
+    "Year (Newest)": "TRY_CAST(startYear AS INT) DESC NULLS LAST",
+    "Year (Oldest)": "TRY_CAST(startYear AS INT) ASC NULLS LAST",
+    "Votes (Most Popular)": "numVotes DESC NULLS LAST",
+    "Runtime (Longest)": "TRY_CAST(runtimeMinutes AS INT) DESC NULLS LAST",
+    "Runtime (Shortest)": "TRY_CAST(runtimeMinutes AS INT) ASC NULLS LAST",
+    "Title (A-Z)": "primaryTitle ASC"
+}
+
+sort_by = st.selectbox("Sort Results By", list(SORT_OPTIONS.keys()))
+
+# Dynamically change button text so user knows what mode they are in
+btn_text = "🎲 Generate Random Picks" if sort_by == "Random (Default)" else "🔍 Fetch Sorted List"
+generate_btn = st.button(btn_text, type="primary", use_container_width=True)
 
 # --- QUERY LOGIC ---
 if generate_btn:
@@ -71,6 +88,7 @@ if generate_btn:
     type_state = {t: (t in selected_types) for t in TITLE_TYPES}
     
     where, params = build_where(values, genre_state, type_state)
+    order_clause = SORT_OPTIONS[sort_by]
     
     with st.spinner("Querying database..."):
         con = get_connection()
@@ -80,10 +98,10 @@ if generate_btn:
             st.warning("No matches found. Try adjusting your filters.")
             st.stop()
             
-        sql = f"SELECT * FROM movie_view WHERE {where} ORDER BY random() LIMIT {num_picks}"
+        sql = f"SELECT * FROM movie_view WHERE {where} ORDER BY {order_clause} LIMIT {num_picks}"
         df = con.execute(sql, params).fetchdf()
         
-    st.success(f"Found {total:,} matches!")
+    st.success(f"Found {total:,} matches! Showing top {len(df)} based on your sort.")
     
     # --- MOBILE-OPTIMIZED RESULTS (Card Layout) ---
     html_cards = ""
@@ -100,7 +118,6 @@ if generate_btn:
         votes = format_votes(row['numVotes'])
         url = f"https://www.imdb.com/title/{row['tconst']}/"
         
-        # Clean HTML that inherits Streamlit's Light/Dark mode colors automatically
         html_cards += f"""
         <div style="border-left: 4px solid #ff4b4b; padding: 5px 0 5px 15px; margin-bottom: 20px;">
             <a href="{url}" target="_blank" style="text-decoration: none; color: inherit;">
