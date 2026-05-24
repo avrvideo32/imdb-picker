@@ -37,7 +37,7 @@ with st.sidebar.expander("Core Metrics", expanded=True):
     
     c1, c2 = st.columns(2)
     runtime_min = c1.number_input("Min (m)", value=0, step=5, min_value=0)
-    runtime_max = c2.number_input("Max (m)", value=300, step=5, min_value=0)
+    runtime_max = c2.number_input("Max (m)", value=3000, step=5, min_value=0)
 
 with st.sidebar.expander("Year & Search"):
     decade = st.selectbox("Decade", DECADES)
@@ -46,18 +46,18 @@ with st.sidebar.expander("Year & Search"):
     fuzzy = st.checkbox("Fuzzy Search", value=False)
 
 with st.sidebar.expander("Categories"):
-    adult = st.checkbox("Include Adult", value=False)
+    adult = st.checkbox("Include Adult", value=True)
     selected_types = st.multiselect("Types", CLEAN_TYPES, default=CLEAN_DEFAULT_TYPES)
     selected_genres = st.multiselect("Genres", CLEAN_GENRES)
 
 # --- MAIN AREA ---
 st.title("🎲 IMDb Picker")
 
-num_picks = st.slider("How many random picks?", 1, 100, 8)
+num_picks = st.slider("How many random picks?", 1, 100, 10)
 
 SORT_OPTIONS = {
-    "Keep them Random": "random()",
     "Rating (High to Low)": "averageRating DESC NULLS LAST",
+    "Keep them Random": "random()",
     "Rating (Low to High)": "averageRating ASC NULLS LAST",
     "Year (Newest)": "TRY_CAST(startYear AS INT) DESC NULLS LAST",
     "Year (Oldest)": "TRY_CAST(startYear AS INT) ASC NULLS LAST",
