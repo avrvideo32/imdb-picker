@@ -48,12 +48,11 @@ with st.sidebar.expander("Categories"):
 # --- MAIN AREA ---
 st.title("🎲 IMDb Picker")
 
-# Increased max to 100 for "Top 100" style lists
-num_picks = st.slider("How many picks?", 1, 100, 8)
+num_picks = st.slider("How many random picks?", 1, 100, 8)
 
-# Sorting dictionary mapping UI text to safe DuckDB SQL clauses
+# Sorting options for the FINAL batch of picks
 SORT_OPTIONS = {
-    "Random (Default)": "random()",
+    "Keep them Random": "random()",
     "Rating (High to Low)": "averageRating DESC NULLS LAST",
     "Rating (Low to High)": "averageRating ASC NULLS LAST",
     "Year (Newest)": "TRY_CAST(startYear AS INT) DESC NULLS LAST",
@@ -61,14 +60,12 @@ SORT_OPTIONS = {
     "Votes (Most Popular)": "numVotes DESC NULLS LAST",
     "Runtime (Longest)": "TRY_CAST(runtimeMinutes AS INT) DESC NULLS LAST",
     "Runtime (Shortest)": "TRY_CAST(runtimeMinutes AS INT) ASC NULLS LAST",
-    "Title (A-Z)": "primaryTitle ASC"
+    "Title (A-Z)": "primaryTitle ASC NULLS LAST"
 }
 
-sort_by = st.selectbox("Sort Results By", list(SORT_OPTIONS.keys()))
+sort_by = st.selectbox("Sort the generated picks by:", list(SORT_OPTIONS.keys()))
 
-# Dynamically change button text so user knows what mode they are in
-btn_text = "🎲 Generate Random Picks" if sort_by == "Random (Default)" else "🔍 Fetch Sorted List"
-generate_btn = st.button(btn_text, type="primary", use_container_width=True)
+generate_btn = st.button("🎲 Generate Picks", type="primary", use_container_width=True)
 
 # --- QUERY LOGIC ---
 if generate_btn:
@@ -98,10 +95,22 @@ if generate_btn:
             st.warning("No matches found. Try adjusting your filters.")
             st.stop()
             
-        sql = f"SELECT * FROM movie_view WHERE {where} ORDER BY {order_clause} LIMIT {num_picks}"
+        # THE MAGIC: 
+        # If random, just grab them. 
+        # If sorting, use a CTE to grab the random batch FIRST, then sort that specific batch.
+        if sort_by == "Keep them Random":
+            sql = f"SELECT * FROM movie_view WHERE {where} ORDER BY random() LIMIT {num_picks}"
+        else:
+            sql = f"""
+                WITH random_batch AS (
+                    SELECT * FROM movie_view WHERE {where} ORDER BY random() LIMIT {num_picks}
+                )
+                SELECT * FROM random_batch ORDER BY {order_clause}
+            """
+            
         df = con.execute(sql, params).fetchdf()
         
-    st.success(f"Found {total:,} matches! Showing top {len(df)} based on your sort.")
+    st.success(f"Found {total:,} total matches! Here are your {len(df)} random picks, sorted by **{sort_by}**.")
     
     # --- MOBILE-OPTIMIZED RESULTS (Card Layout) ---
     html_cards = ""
