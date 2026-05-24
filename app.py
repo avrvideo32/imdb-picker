@@ -10,6 +10,11 @@ from utils import (
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="IMDb Picker", page_icon="🎬", layout="centered", initial_sidebar_state="expanded")
 
+# --- CLEAN UP UTILS (Removes accidental trailing spaces from your utils.py) ---
+CLEAN_GENRES = [g.strip() for g in GENRES]
+CLEAN_TYPES = [t.strip() for t in TITLE_TYPES]
+CLEAN_DEFAULT_TYPES = [t.strip() for t in DEFAULT_TYPES]
+
 # --- DATABASE CONNECTION ---
 @st.cache_resource
 def get_connection():
@@ -42,15 +47,14 @@ with st.sidebar.expander("Year & Search"):
 
 with st.sidebar.expander("Categories"):
     adult = st.checkbox("Include Adult", value=False)
-    selected_types = st.multiselect("Types", TITLE_TYPES, default=list(DEFAULT_TYPES))
-    selected_genres = st.multiselect("Genres", GENRES)
+    selected_types = st.multiselect("Types", CLEAN_TYPES, default=CLEAN_DEFAULT_TYPES)
+    selected_genres = st.multiselect("Genres", CLEAN_GENRES)
 
 # --- MAIN AREA ---
 st.title("🎲 IMDb Picker")
 
 num_picks = st.slider("How many random picks?", 1, 100, 8)
 
-# Sorting options for the FINAL batch of picks
 SORT_OPTIONS = {
     "Keep them Random": "random()",
     "Rating (High to Low)": "averageRating DESC NULLS LAST",
@@ -67,6 +71,19 @@ sort_by = st.selectbox("Sort the generated picks by:", list(SORT_OPTIONS.keys())
 
 generate_btn = st.button("🎲 Generate Picks", type="primary", use_container_width=True)
 
+# --- TYPE MAP (Formats camelCase DB strings into readable text) ---
+TYPE_MAP = {
+    'movie': 'Movie',
+    'short': 'Short',
+    'tvMovie': 'TV Movie',
+    'tvSeries': 'TV Series',
+    'tvMiniSeries': 'TV Mini-Series',
+    'tvEpisode': 'TV Episode',
+    'tvShort': 'TV Short',
+    'video': 'Video',
+    'videoGame': 'Video Game'
+}
+
 # --- QUERY LOGIC ---
 if generate_btn:
     values = {
@@ -81,8 +98,8 @@ if generate_btn:
         'adult': adult
     }
     
-    genre_state = {g: (g in selected_genres) for g in GENRES}
-    type_state = {t: (t in selected_types) for t in TITLE_TYPES}
+    genre_state = {g: (g in selected_genres) for g in CLEAN_GENRES}
+    type_state = {t: (t in selected_types) for t in CLEAN_TYPES}
     
     where, params = build_where(values, genre_state, type_state)
     order_clause = SORT_OPTIONS[sort_by]
@@ -95,9 +112,6 @@ if generate_btn:
             st.warning("No matches found. Try adjusting your filters.")
             st.stop()
             
-        # THE MAGIC: 
-        # If random, just grab them. 
-        # If sorting, use a CTE to grab the random batch FIRST, then sort that specific batch.
         if sort_by == "Keep them Random":
             sql = f"SELECT * FROM movie_view WHERE {where} ORDER BY random() LIMIT {num_picks}"
         else:
@@ -122,6 +136,10 @@ if generate_btn:
         rt = format_runtime(rt_raw, as_hms=True)
         if rt == '\\N' or not rt: rt = 'N/A'
         
+        # Format Title Type (e.g., 'tvSeries' -> 'TV Series')
+        raw_type = str(row.get('titleType', '')).strip()
+        t_type = TYPE_MAP.get(raw_type, raw_type.title() if raw_type and raw_type != '\\N' else 'N/A')
+        
         genres = str(row['genres']).replace('\\N', 'No Genre').replace(',', ' • ')
         rating = format_rating(row['averageRating'])
         votes = format_votes(row['numVotes'])
@@ -133,7 +151,7 @@ if generate_btn:
                 <h3 style="margin: 0 0 5px 0;">{title}</h3>
             </a>
             <p style="margin: 0 0 5px 0; font-size: 0.9em; opacity: 0.8;">
-                <strong>{yr}</strong> &bull; {rt} &bull; {genres}
+                <strong>{yr}</strong> &bull; {t_type} &bull; {rt} &bull; {genres}
             </p>
             <p style="margin: 0; font-size: 1em;">
                 ⭐ <strong>{rating}</strong> <span style="opacity: 0.6;">({votes} votes)</span>
