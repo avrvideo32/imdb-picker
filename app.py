@@ -1,16 +1,10 @@
 import streamlit as st
 import duckdb
-import pandas as pd
-import urllib.request
-import json
 from filters import build_where
 from utils import (
     GENRES, TITLE_TYPES, DEFAULT_TYPES, DECADES, TYPE_MAP,
     format_runtime, format_votes, format_rating
 )
-
-# --- PASTE YOUR GOOGLE APPS SCRIPT WEBHOOK URL HERE ---
-SHEETS_WEBHOOK_URL = "PASTE_YOUR_WEBHOOK_URL_HERE"
 
 # --- PAGE CONFIG ---
 # Because we don't use st.sidebar anywhere below, Streamlit natively hides it!
@@ -28,21 +22,6 @@ def get_connection():
         pass
     con.execute(f"CREATE VIEW movie_view AS SELECT * FROM read_parquet('{parquet_url}')")
     return con
-
-# --- GOOGLE SHEETS HELPER ---
-def log_to_sheets(tab_name, row_data):
-    payload = json.dumps({"row": row_data}).encode('utf-8')
-    req = urllib.request.Request(
-        f"{SHEETS_WEBHOOK_URL}?tab={tab_name}",
-        data=payload,
-        headers={'Content-Type': 'application/json'}
-    )
-    try:
-        urllib.request.urlopen(req, timeout=5)
-        return True
-    except Exception as e:
-        st.error(f"Connection Error: {e}")
-        return False
 
 # --- MAIN AREA ---
 st.title("🎲 IMDb Picker")
@@ -115,6 +94,7 @@ if generate_btn:
             st.warning("No matches found.")
             st.stop()
 
+        # HANDLE \N AT THE DATABASE LEVEL
         base_select = """
             SELECT
                 tconst, primaryTitle,
@@ -137,14 +117,15 @@ if generate_btn:
 
     st.success(f"Found {total:,} total matches! Showing {len(df)} picks.")
 
-    # --- RESULTS & DYNAMIC LOGGING UI ---
+    # --- RESULTS UI ---
     for _, row in df.iterrows():
         title = str(row['primaryTitle'])
         yr = str(row['startYear'])
         genres = str(row['genres']).replace(',', ' • ')
 
         rt = format_runtime(row['runtimeMinutes'], as_hms=True)
-        if not rt: rt = 'N/A'
+        if not rt: 
+            rt = 'N/A'
 
         raw_type = str(row.get('titleType', '')).strip()
         t_type = TYPE_MAP.get(raw_type, raw_type.title() if raw_type else 'N/A')
@@ -153,8 +134,9 @@ if generate_btn:
         votes = format_votes(row['numVotes'])
         url = f"https://www.imdb.com/title/{row['tconst']}/"
 
+        # Movie Card
         st.markdown(f"""
-        <div style="border-left: 4px solid #ff4b4b; padding: 5px 0 5px 15px; margin-bottom: 5px;">
+        <div style="border-left: 4px solid #ff4b4b; padding: 5px 0 5px 15px; margin-bottom: 15px;">
             <a href="{url}" target="_blank" style="text-decoration: none; color: inherit;">
                 <h3 style="margin: 0 0 5px 0;">{title}</h3>
             </a>
@@ -166,33 +148,3 @@ if generate_btn:
             </p>
         </div>
         """, unsafe_allow_html=True)
-
-        with st.expander(f"Log '{title}'"):
-            tab_choice = st.selectbox(
-                "Add to tab:",
-                ["movies", "tv shows", "completed tv shows"],
-                key=f"tab_{row['tconst']}"
-            )
-
-            row_data = []
-            if tab_choice == "movies":
-                summary = st.text_input("Plot Summary (1 sentence)", key=f"sum_{row['tconst']}")
-                my_rating = st.slider("My Rating (1-10)", 1, 10, 5, key=f"rat_{row['tconst']}")
-                liked = st.text_area("What I liked", height=68, key=f"lik_{row['tconst']}")
-                row_data = [title, summary, my_rating, liked]
-            elif tab_choice == "tv shows":
-                season = st.number_input("Current Season", 1, 100, 1, key=f"sea_{row['tconst']}")
-                episode = st.number_input("Next Episode", 1, 100, 1, key=f"ep_{row['tconst']}")
-                row_data = [title, season, episode]
-            elif tab_choice == "completed tv shows":
-                st.info("Will log as: **Name** | complete | complete")
-                row_data = [title, "complete", "complete"]
-
-            if st.button("✅ Log it!", key=f"log_{row['tconst']}", use_container_width=True):
-                with st.spinner("Sending to Sheets..."):
-                    if log_to_sheets(tab_choice, row_data):
-                        st.success(f"Logged to '{tab_choice}'!")
-                    else:
-                        st.error("Failed. Check URL.")
-        
-        st.markdown("---")
