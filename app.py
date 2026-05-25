@@ -7,7 +7,6 @@ from utils import (
 )
 
 # --- PAGE CONFIG ---
-# Because we don't use st.sidebar anywhere below, Streamlit natively hides it!
 st.set_page_config(page_title="IMDb Picker", page_icon="🎬", layout="centered")
 
 # --- DATABASE CONNECTION ---
@@ -26,32 +25,29 @@ def get_connection():
 # --- MAIN AREA ---
 st.title("🎲 IMDb Picker")
 
-# MOBILE-FRIENDLY FILTERS (Main Page Expander)
-with st.expander("🎛️ Curation Filters", expanded=True):
+# --- SIDEBAR (Filters) ---
+# Streamlit handles mobile/desktop responsiveness natively here.
+# No CSS hacks needed.
+with st.sidebar:
+    st.header("🎛️ Curation Filters")
+    min_votes = st.number_input("Min Votes", value=50, step=10, min_value=0)
+    min_rating = st.number_input("Min Rating", value=0.0, step=0.1, min_value=0.0, max_value=10.0)
+    
     c1, c2 = st.columns(2)
-    min_votes = c1.number_input("Min Votes", value=50, step=10, min_value=0)
-    min_rating = c2.number_input("Min Rating", value=0.0, step=0.1, min_value=0.0, max_value=10.0)
-
-    c3, c4 = st.columns(2)
-    runtime_min = c3.number_input("Runtime Min (m)", value=0, step=5, min_value=0)
-    runtime_max = c4.number_input("Runtime Max (m)", value=300, step=5, min_value=0)
+    runtime_min = c1.number_input("Min (m)", value=0, step=5, min_value=0)
+    runtime_max = c2.number_input("Max (m)", value=300, step=5, min_value=0)
 
     decade = st.selectbox("Decade", DECADES)
     year = st.text_input("Exact Year")
-
-    sc1, sc2 = st.columns([2, 1])
-    search = sc1.text_input("Search Title")
-    fuzzy = sc2.checkbox("Fuzzy Search", value=False)
-
+    search = st.text_input("Search Title")
+    fuzzy = st.checkbox("Fuzzy Search", value=False)
+    
     adult = st.checkbox("Include Adult Titles", value=False)
     selected_types = st.multiselect("Types", TITLE_TYPES, default=list(DEFAULT_TYPES))
     selected_genres = st.multiselect("✅ Include Genres", GENRES)
     excluded_genres = st.multiselect("🚫 Exclude Genres", GENRES)
 
-# ACTION BAR
-ac1, ac2 = st.columns([1, 2])
-num_picks = ac1.slider("Picks", 1, 100, 8)
-
+# --- MAIN ACTION BAR ---
 SORT_OPTIONS = {
     "Keep them Random": "random()",
     "Rating (High to Low)": "averageRating DESC NULLS LAST",
@@ -63,8 +59,9 @@ SORT_OPTIONS = {
     "Runtime (Shortest)": "TRY_CAST(runtimeMinutes AS INT) ASC NULLS LAST",
     "Title (A-Z)": "primaryTitle ASC NULLS LAST"
 }
-sort_by = ac2.selectbox("Sort generated picks by:", list(SORT_OPTIONS.keys()))
 
+sort_by = st.selectbox("Sort generated picks by:", list(SORT_OPTIONS.keys()))
+num_picks = st.slider("How many picks?", 1, 100, 8)
 generate_btn = st.button("🎲 Generate Picks", type="primary", use_container_width=True)
 
 # --- QUERY LOGIC ---
@@ -94,7 +91,6 @@ if generate_btn:
             st.warning("No matches found.")
             st.stop()
 
-        # HANDLE \N AT THE DATABASE LEVEL
         base_select = """
             SELECT
                 tconst, primaryTitle,
@@ -134,7 +130,6 @@ if generate_btn:
         votes = format_votes(row['numVotes'])
         url = f"https://www.imdb.com/title/{row['tconst']}/"
 
-        # Movie Card
         st.markdown(f"""
         <div style="border-left: 4px solid #ff4b4b; padding: 5px 0 5px 15px; margin-bottom: 15px;">
             <a href="{url}" target="_blank" style="text-decoration: none; color: inherit;">
