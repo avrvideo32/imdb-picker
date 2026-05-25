@@ -5,29 +5,26 @@ GENRES = [
     "Sci-Fi", "Sport", "Talk-Show", "Thriller", "War", "Western"
 ]
 
-# Removed unused types to match the new optimized database
 TITLE_TYPES = ["movie", "tvMovie", "tvSeries", "tvMiniSeries"]
 DEFAULT_TYPES = {"movie", "tvMovie", "tvSeries", "tvMiniSeries"}
 
 DECADES = ["Any"] + [str(y) for y in range(2020, 1899, -10)]
 
-DEFAULT_STATE = {
-    'min_votes': "50",
-    'min_rating': "",
-    'year': "",
-    'decade': "Any",
-    'search': "",
-    'fuzzy': False,
-    'runtime_min': "",
-    'runtime_max': "",
-    'adult': True,
-    'runtime_fmt': False,
-    'num_picks': 8
+# Centralized Type Map for both Desktop and Web apps
+TYPE_MAP = {
+    'movie': 'Movie', 'short': 'Short', 'tvMovie': 'TV Movie',
+    'tvSeries': 'TV Series', 'tvMiniSeries': 'TV Mini-Series',
+    'tvEpisode': 'TV Episode', 'tvShort': 'TV Short',
+    'video': 'Video', 'videoGame': 'Video Game'
 }
 
+DEFAULT_STATE = {
+    'min_votes': "50", 'min_rating': "", 'year': "", 'decade': "Any",
+    'search': "", 'fuzzy': False, 'runtime_min': "", 'runtime_max': "",
+    'adult': True, 'runtime_fmt': False, 'num_picks': 8
+}
 
 def format_runtime(runtime_str, as_hms=False):
-    """Convert runtime string from DB to display format."""
     if not runtime_str or runtime_str == '\\N':
         return runtime_str
     try:
@@ -42,7 +39,6 @@ def format_runtime(runtime_str, as_hms=False):
         return f"{rt} min"
     return runtime_str
 
-
 def format_votes(votes_str):
     if votes_str and votes_str != '\\N':
         try:
@@ -50,7 +46,6 @@ def format_votes(votes_str):
         except ValueError:
             return votes_str
     return ''
-
 
 def format_rating(rating_str):
     if rating_str and rating_str != '\\N':
