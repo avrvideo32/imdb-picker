@@ -5,11 +5,8 @@ GENRES = [
     "Sci-Fi", "Sport", "Talk-Show", "Thriller", "War", "Western"
 ]
 
-TITLE_TYPES = [
-    "movie", "short", "tvMovie", "tvSeries", "tvMiniSeries",
-    "tvEpisode", "tvShort", "video", "videoGame"
-]
-
+# Removed unused types to match the new optimized database
+TITLE_TYPES = ["movie", "tvMovie", "tvSeries", "tvMiniSeries"]
 DEFAULT_TYPES = {"movie", "tvMovie", "tvSeries", "tvMiniSeries"}
 
 DECADES = ["Any"] + [str(y) for y in range(2020, 1899, -10)]
@@ -33,7 +30,6 @@ def format_runtime(runtime_str, as_hms=False):
     """Convert runtime string from DB to display format."""
     if not runtime_str or runtime_str == '\\N':
         return runtime_str
-
     try:
         rt = int(runtime_str)
     except ValueError:
