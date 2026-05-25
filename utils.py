@@ -10,7 +10,6 @@ DEFAULT_TYPES = {"movie", "tvMovie", "tvSeries", "tvMiniSeries"}
 
 DECADES = ["Any"] + [str(y) for y in range(2020, 1899, -10)]
 
-# Centralized Type Map for both Desktop and Web apps
 TYPE_MAP = {
     'movie': 'Movie', 'short': 'Short', 'tvMovie': 'TV Movie',
     'tvSeries': 'TV Series', 'tvMiniSeries': 'TV Mini-Series',
@@ -21,7 +20,8 @@ TYPE_MAP = {
 DEFAULT_STATE = {
     'min_votes': "50", 'min_rating': "", 'year': "", 'decade': "Any",
     'search': "", 'fuzzy': False, 'runtime_min': "", 'runtime_max': "",
-    'adult': True, 'runtime_fmt': False, 'num_picks': 8
+    'adult': True, 'runtime_fmt': False, 'num_picks': 8,
+    'excluded_genres': []
 }
 
 
