@@ -1,7 +1,4 @@
 def build_where(values, genres, types):
-    """
-    Returns a tuple of (where_clause_string, parameters_list)
-    """
     clauses = []
     params = []
 
@@ -35,7 +32,6 @@ def build_where(values, genres, types):
         clauses.append(f"titleType IN ({placeholders})")
         params.extend(selected_types)
 
-    # INCLUDE GENRES
     selected_genres = [g for g, v in genres.items() if v]
     if selected_genres:
         genre_clauses = []
@@ -44,7 +40,7 @@ def build_where(values, genres, types):
             params.append(f"%{g}%")
         clauses.append("(" + " AND ".join(genre_clauses) + ")")
 
-    # EXCLUDE GENRES (New)
+    # EXCLUDE GENRES
     excluded_genres = values.get('excluded_genres', [])
     if excluded_genres:
         exclude_clauses = []
