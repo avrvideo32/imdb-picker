@@ -35,6 +35,7 @@ def build_where(values, genres, types):
         clauses.append(f"titleType IN ({placeholders})")
         params.extend(selected_types)
 
+    # INCLUDE GENRES
     selected_genres = [g for g, v in genres.items() if v]
     if selected_genres:
         genre_clauses = []
@@ -43,13 +44,21 @@ def build_where(values, genres, types):
             params.append(f"%{g}%")
         clauses.append("(" + " AND ".join(genre_clauses) + ")")
 
+    # EXCLUDE GENRES (New)
+    excluded_genres = values.get('excluded_genres', [])
+    if excluded_genres:
+        exclude_clauses = []
+        for g in excluded_genres:
+            exclude_clauses.append("genres NOT LIKE ?")
+            params.append(f"%{g}%")
+        clauses.append("(" + " AND ".join(exclude_clauses) + ")")
+
     if not values.get('adult', False):
         clauses.append("isAdult = 0")
 
     search = values.get('search', '').strip()
     if search:
         if values.get('fuzzy', False):
-            # jaro_winkler_similarity is native to duckdb
             clauses.append("(jaro_winkler_similarity(lower(primaryTitle), ?) > 0.7 OR "
                            "jaro_winkler_similarity(lower(originalTitle), ?) > 0.7)")
             params.extend([search.lower(), search.lower()])
