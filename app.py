@@ -12,34 +12,9 @@ from utils import (
 # --- PASTE YOUR GOOGLE APPS SCRIPT WEBHOOK URL HERE ---
 SHEETS_WEBHOOK_URL = "PASTE_YOUR_WEBHOOK_URL_HERE"
 
-# --- PAGE CONFIG & COMPLETE SIDEBAR REMOVAL ---
+# --- PAGE CONFIG ---
+# Because we don't use st.sidebar anywhere below, Streamlit natively hides it!
 st.set_page_config(page_title="IMDb Picker", page_icon="🎬", layout="centered")
-
-# Force-hide sidebar completely across all Streamlit versions
-st.markdown("""
-<style>
-    section[data-testid="stSidebar"],
-    div[data-testid="stSidebarContent"],
-    .stSidebar,
-    button[kind="header"] {
-        display: none !important;
-        visibility: hidden !important;
-        width: 0 !important;
-        min-width: 0 !important;
-        max-width: 0 !important;
-        padding: 0 !important;
-        margin: 0 !important;
-    }
-    .main .block-container,
-    section.main > div.block-container,
-    div[data-testid="stMainBlockContainer"] {
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
-        max-width: 100% !important;
-        width: 100% !important;
-    }
-</style>
-""", unsafe_allow_html=True)
 
 # --- DATABASE CONNECTION ---
 @st.cache_resource
@@ -140,7 +115,6 @@ if generate_btn:
             st.warning("No matches found.")
             st.stop()
 
-        # HANDLE \N AT THE DATABASE LEVEL
         base_select = """
             SELECT
                 tconst, primaryTitle,
@@ -170,8 +144,7 @@ if generate_btn:
         genres = str(row['genres']).replace(',', ' • ')
 
         rt = format_runtime(row['runtimeMinutes'], as_hms=True)
-        if not rt:
-            rt = 'N/A'
+        if not rt: rt = 'N/A'
 
         raw_type = str(row.get('titleType', '')).strip()
         t_type = TYPE_MAP.get(raw_type, raw_type.title() if raw_type else 'N/A')
@@ -180,7 +153,6 @@ if generate_btn:
         votes = format_votes(row['numVotes'])
         url = f"https://www.imdb.com/title/{row['tconst']}/"
 
-        # Movie Card
         st.markdown(f"""
         <div style="border-left: 4px solid #ff4b4b; padding: 5px 0 5px 15px; margin-bottom: 5px;">
             <a href="{url}" target="_blank" style="text-decoration: none; color: inherit;">
@@ -195,7 +167,6 @@ if generate_btn:
         </div>
         """, unsafe_allow_html=True)
 
-        # Dynamic Logging Expander
         with st.expander(f"Log '{title}'"):
             tab_choice = st.selectbox(
                 "Add to tab:",
@@ -209,12 +180,10 @@ if generate_btn:
                 my_rating = st.slider("My Rating (1-10)", 1, 10, 5, key=f"rat_{row['tconst']}")
                 liked = st.text_area("What I liked", height=68, key=f"lik_{row['tconst']}")
                 row_data = [title, summary, my_rating, liked]
-
             elif tab_choice == "tv shows":
                 season = st.number_input("Current Season", 1, 100, 1, key=f"sea_{row['tconst']}")
                 episode = st.number_input("Next Episode", 1, 100, 1, key=f"ep_{row['tconst']}")
                 row_data = [title, season, episode]
-
             elif tab_choice == "completed tv shows":
                 st.info("Will log as: **Name** | complete | complete")
                 row_data = [title, "complete", "complete"]
@@ -225,5 +194,5 @@ if generate_btn:
                         st.success(f"Logged to '{tab_choice}'!")
                     else:
                         st.error("Failed. Check URL.")
-
+        
         st.markdown("---")
