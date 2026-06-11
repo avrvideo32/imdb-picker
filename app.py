@@ -35,22 +35,22 @@ with st.sidebar:
     
     c1, c2 = st.columns(2)
     runtime_min = c1.number_input("Min (m)", value=0, step=5, min_value=0)
-    runtime_max = c2.number_input("Max (m)", value=300, step=5, min_value=0)
+    runtime_max = c2.number_input("Max (m)", value=3000, step=5, min_value=0)
 
     decade = st.selectbox("Decade", DECADES)
     year = st.text_input("Exact Year")
     search = st.text_input("Search Title")
     fuzzy = st.checkbox("Fuzzy Search", value=False)
     
-    adult = st.checkbox("Include Adult Titles", value=False)
+    adult = st.checkbox("Include Adult Titles", value=True)
     selected_types = st.multiselect("Types", TITLE_TYPES, default=list(DEFAULT_TYPES))
     selected_genres = st.multiselect("✅ Include Genres", GENRES)
     excluded_genres = st.multiselect("🚫 Exclude Genres", GENRES)
 
 # --- MAIN ACTION BAR ---
 SORT_OPTIONS = {
-    "Keep them Random": "random()",
     "Rating (High to Low)": "averageRating DESC NULLS LAST",
+    "Keep them Random": "random()",   
     "Rating (Low to High)": "averageRating ASC NULLS LAST",
     "Year (Newest)": "TRY_CAST(startYear AS INT) DESC NULLS LAST",
     "Year (Oldest)": "TRY_CAST(startYear AS INT) ASC NULLS LAST",
