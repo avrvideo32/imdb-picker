@@ -30,7 +30,7 @@ st.title("🎲 IMDb Picker")
 # No CSS hacks needed.
 with st.sidebar:
     st.header("🎛️ Curation Filters")
-    min_votes = st.number_input("Min Votes", value=50, step=10, min_value=0)
+    min_votes = st.number_input("Min Votes", value=0, step=10, min_value=0)
     min_rating = st.number_input("Min Rating", value=0.0, step=0.1, min_value=0.0, max_value=10.0)
     
     c1, c2 = st.columns(2)
