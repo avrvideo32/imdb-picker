@@ -1,38 +1,37 @@
-def build_where(values, genres, types):
+def build_where(values, selected_genres, selected_types):
     clauses = []
     params = []
 
-    if values.get('min_votes', ''):
+    if values.get('min_votes'):
         clauses.append("numVotes >= ?")
         params.append(int(values['min_votes']))
 
-    if values.get('min_rating', ''):
+    if values.get('min_rating'):
         clauses.append("averageRating >= ?")
         params.append(float(values['min_rating']))
 
-    if values.get('year', ''):
+    if values.get('year'):
         clauses.append("startYear = ?")
         params.append(str(values['year']))
 
     if values.get('decade', 'Any') != 'Any':
         d = int(values['decade'])
-        clauses.append(f"CAST(startYear AS INT) BETWEEN {d} AND {d + 9}")
+        # TRY_CAST prevents crashes if startYear contains '\N' or empty strings
+        clauses.append(f"TRY_CAST(startYear AS INT) BETWEEN {d} AND {d + 9}")
 
-    if values.get('runtime_min', ''):
-        clauses.append("CAST(runtimeMinutes AS INT) >= ?")
+    if values.get('runtime_min'):
+        clauses.append("TRY_CAST(runtimeMinutes AS INT) >= ?")
         params.append(int(values['runtime_min']))
 
-    if values.get('runtime_max', ''):
-        clauses.append("CAST(runtimeMinutes AS INT) <= ?")
+    if values.get('runtime_max'):
+        clauses.append("TRY_CAST(runtimeMinutes AS INT) <= ?")
         params.append(int(values['runtime_max']))
 
-    selected_types = [t for t, v in types.items() if v]
     if selected_types:
         placeholders = ", ".join(["?"] * len(selected_types))
         clauses.append(f"titleType IN ({placeholders})")
         params.extend(selected_types)
 
-    selected_genres = [g for g, v in genres.items() if v]
     if selected_genres:
         genre_clauses = []
         for g in selected_genres:
@@ -40,7 +39,6 @@ def build_where(values, genres, types):
             params.append(f"%{g}%")
         clauses.append("(" + " AND ".join(genre_clauses) + ")")
 
-    # EXCLUDE GENRES
     excluded_genres = values.get('excluded_genres', [])
     if excluded_genres:
         exclude_clauses = []
