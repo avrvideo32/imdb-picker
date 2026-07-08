@@ -40,7 +40,7 @@ st.set_page_config(page_title="IMDb Picker", page_icon="🎬", layout="centered"
 def get_connection():
     con = duckdb.connect(':memory:')
     # 👇 UPDATE THIS TO YOUR NEW HUGGING FACE DATASET URL
-    parquet_url = "https://huggingface.co/datasets/YOUR_USERNAME/YOUR_DATASET_NAME/resolve/main/imdb_cache.parquet"
+    parquet_url = "https://huggingface.co/datasets/Avrozavr/Imdb/resolve/main/imdb_cache.parquet"
     try:
         con.execute("INSTALL httpfs;")
         con.execute("LOAD httpfs;")
