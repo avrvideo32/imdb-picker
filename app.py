@@ -55,7 +55,7 @@ with st.sidebar:
     
     # By assigning a `key` to each widget, Streamlit automatically binds it to st.session_state.
     # If we loaded defaults into st.session_state earlier, the widgets will automatically show those saved values!
-    min_votes = st.number_input("Min Votes", value=0, step=10, min_value=0, key="min_votes")
+    min_votes = st.number_input("Min Votes", value=0, step=10, min_value=1, key="min_votes")
     min_rating = st.number_input("Min Rating", value=0.0, step=0.1, min_value=0.0, max_value=10.0, key="min_rating")
     
     c1, c2 = st.columns(2)
@@ -93,8 +93,8 @@ st.title("🎲 IMDb Picker")
 col1, col2 = st.columns([1, 1])
 with col1:
     SORT_OPTIONS = {
-        "Keep them Random": "random()",
         "Votes (Most Popular)": "TRY_CAST(numVotes AS INT) DESC NULLS LAST",
+        "Keep them Random": "random()",
         "Rating (High to Low)": "TRY_CAST(averageRating AS DOUBLE) DESC NULLS LAST",
         "Rating (Low to High)": "TRY_CAST(averageRating AS DOUBLE) ASC NULLS LAST",
         "Year (Newest)": "TRY_CAST(startYear AS INT) DESC NULLS LAST",
