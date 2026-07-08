@@ -55,7 +55,7 @@ with st.sidebar:
     
     # By assigning a `key` to each widget, Streamlit automatically binds it to st.session_state.
     # If we loaded defaults into st.session_state earlier, the widgets will automatically show those saved values!
-    min_votes = st.number_input("Min Votes", value=0, step=10, min_value=1, key="min_votes")
+    min_votes = st.number_input("Min Votes", value=1, step=10, min_value=0, key="min_votes")
     min_rating = st.number_input("Min Rating", value=0.0, step=0.1, min_value=0.0, max_value=10.0, key="min_rating")
     
     c1, c2 = st.columns(2)
