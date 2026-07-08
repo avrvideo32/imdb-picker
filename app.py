@@ -18,9 +18,7 @@ def get_connection():
     try:
         con.execute("INSTALL httpfs;")
         con.execute("LOAD httpfs;")
-        # Load text extension for jaro_winkler_similarity (fuzzy search)
-        con.execute("INSTALL text;")
-        con.execute("LOAD text;")
+        # jaro_winkler_similarity is built into DuckDB core, no extension needed!
     except Exception as e:
         st.error(f"Failed to load DuckDB extensions: {e}")
     
