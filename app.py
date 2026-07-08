@@ -16,7 +16,7 @@ def get_connection():
     con = duckdb.connect(':memory:')
     
     # 👇 UPDATE THIS TO YOUR NEW HUGGING FACE DATASET URL
-    parquet_url = "https://huggingface.co/datasets/Avrozavr/Imdb/blob/main/imdb_cache.parquet"
+    parquet_url = "https://huggingface.co/datasets/Avrozavr/Imdb/imdb_cache.parquet"
     
     try:
         con.execute("INSTALL httpfs;")
