@@ -1,11 +1,36 @@
 import streamlit as st
 import duckdb
 import html
+import json
+import os
 from filters import build_where
 from utils import (
     GENRES, TITLE_TYPES, DEFAULT_TYPES, DECADES, TYPE_MAP,
     format_runtime, format_votes, format_rating
 )
+
+# --- DEFAULTS MANAGEMENT ---
+DEFAULTS_FILE = "user_defaults.json"
+
+def load_defaults():
+    if os.path.exists(DEFAULTS_FILE):
+        try:
+            with open(DEFAULTS_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def save_defaults(data):
+    with open(DEFAULTS_FILE, "w") as f:
+        json.dump(data, f)
+
+# Load saved defaults into session state on first run
+if "initialized" not in st.session_state:
+    saved_defaults = load_defaults()
+    for key, value in saved_defaults.items():
+        st.session_state[key] = value
+    st.session_state.initialized = True
 
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="IMDb Picker", page_icon="🎬", layout="centered")
@@ -14,10 +39,8 @@ st.set_page_config(page_title="IMDb Picker", page_icon="🎬", layout="centered"
 @st.cache_resource
 def get_connection():
     con = duckdb.connect(':memory:')
-    
     # 👇 UPDATE THIS TO YOUR NEW HUGGING FACE DATASET URL
-    parquet_url = "https://huggingface.co/datasets/Avrozavr/Imdb/resolve/main/imdb_cache.parquet"
-    
+    parquet_url = "https://huggingface.co/datasets/YOUR_USERNAME/YOUR_DATASET_NAME/resolve/main/imdb_cache.parquet"
     try:
         con.execute("INSTALL httpfs;")
         con.execute("LOAD httpfs;")
@@ -26,48 +49,66 @@ def get_connection():
     con.execute(f"CREATE VIEW movie_view AS SELECT * FROM read_parquet('{parquet_url}')")
     return con
 
-# --- MAIN AREA ---
+# --- SIDEBAR (Filters Only) ---
+with st.sidebar:
+    st.header("🎛️ Curation Filters")
+    
+    # By assigning a `key` to each widget, Streamlit automatically binds it to st.session_state.
+    # If we loaded defaults into st.session_state earlier, the widgets will automatically show those saved values!
+    min_votes = st.number_input("Min Votes", value=0, step=10, min_value=0, key="min_votes")
+    min_rating = st.number_input("Min Rating", value=0.0, step=0.1, min_value=0.0, max_value=10.0, key="min_rating")
+    
+    c1, c2 = st.columns(2)
+    runtime_min = c1.number_input("Min (m)", value=0, step=5, min_value=0, key="runtime_min")
+    runtime_max = c2.number_input("Max (m)", value=3000, step=5, min_value=0, key="runtime_max")
+    
+    decade = st.selectbox("Decade", DECADES, key="decade")
+    year = st.text_input("Exact Year", key="year")
+    search = st.text_input("Search Title", key="search")
+    fuzzy = st.checkbox("Fuzzy Search", value=False, key="fuzzy")
+    adult = st.checkbox("Include Adult Titles", value=True, key="adult")
+    
+    selected_types = st.multiselect("Types", TITLE_TYPES, default=list(DEFAULT_TYPES), key="selected_types")
+    selected_genres = st.multiselect("✅ Include Genres", GENRES, key="selected_genres")
+    excluded_genres = st.multiselect("🚫 Exclude Genres", GENRES, key="excluded_genres")
+    
+    st.divider()
+    
+    # SAVE DEFAULTS BUTTON
+    if st.button("💾 Save Filters as Default", use_container_width=True):
+        # Grab all current widget values from session state
+        keys_to_save = [
+            'min_votes', 'min_rating', 'runtime_min', 'runtime_max', 
+            'decade', 'year', 'search', 'fuzzy', 'adult', 
+            'selected_types', 'selected_genres', 'excluded_genres'
+        ]
+        current_settings = {k: st.session_state.get(k) for k in keys_to_save}
+        save_defaults(current_settings)
+        st.success("Defaults saved!")
+
+# --- MAIN SCREEN ---
 st.title("🎲 IMDb Picker")
 
-# --- SIDEBAR (Filters & Form) ---
-with st.sidebar:
-    with st.form("filter_form"):
-        st.header("🎛️ Curation Filters")
-        
-        min_votes = st.number_input("Min Votes", value=0, step=10, min_value=0)
-        min_rating = st.number_input("Min Rating", value=0.0, step=0.1, min_value=0.0, max_value=10.0)
-        
-        c1, c2 = st.columns(2)
-        runtime_min = c1.number_input("Min (m)", value=0, step=5, min_value=0)
-        runtime_max = c2.number_input("Max (m)", value=3000, step=5, min_value=0)
-        
-        decade = st.selectbox("Decade", DECADES)
-        year = st.text_input("Exact Year")
-        search = st.text_input("Search Title")
-        fuzzy = st.checkbox("Fuzzy Search", value=False)
-        adult = st.checkbox("Include Adult Titles", value=True)
-        
-        selected_types = st.multiselect("Types", TITLE_TYPES, default=list(DEFAULT_TYPES))
-        selected_genres = st.multiselect("✅ Include Genres", GENRES)
-        excluded_genres = st.multiselect("🚫 Exclude Genres", GENRES)
-        
-        # NO TRAILING SPACES! Added TRY_CAST to Votes and Rating for safe sorting
-        SORT_OPTIONS = {
-            "Votes (Most Popular)": "TRY_CAST(numVotes AS INT) DESC NULLS LAST",
-            "Rating (High to Low)": "TRY_CAST(averageRating AS DOUBLE) DESC NULLS LAST",
-            "Keep them Random": "random()",
-            "Rating (Low to High)": "TRY_CAST(averageRating AS DOUBLE) ASC NULLS LAST",
-            "Year (Newest)": "TRY_CAST(startYear AS INT) DESC NULLS LAST",
-            "Year (Oldest)": "TRY_CAST(startYear AS INT) ASC NULLS LAST",
-            "Runtime (Longest)": "TRY_CAST(runtimeMinutes AS INT) DESC NULLS LAST",
-            "Runtime (Shortest)": "TRY_CAST(runtimeMinutes AS INT) ASC NULLS LAST",
-            "Title (A-Z)": "primaryTitle ASC NULLS LAST"
-        }
-        
-        sort_by = st.selectbox("Sort generated picks by:", list(SORT_OPTIONS.keys()))
-        num_picks = st.slider("How many picks?", 1, 100, 8)
-        
-        generate_btn = st.form_submit_button("🎲 Generate Picks", type="primary", use_container_width=True)
+# Execution Controls
+col1, col2 = st.columns([1, 1])
+with col1:
+    SORT_OPTIONS = {
+        "Keep them Random": "random()",
+        "Votes (Most Popular)": "TRY_CAST(numVotes AS INT) DESC NULLS LAST",
+        "Rating (High to Low)": "TRY_CAST(averageRating AS DOUBLE) DESC NULLS LAST",
+        "Rating (Low to High)": "TRY_CAST(averageRating AS DOUBLE) ASC NULLS LAST",
+        "Year (Newest)": "TRY_CAST(startYear AS INT) DESC NULLS LAST",
+        "Year (Oldest)": "TRY_CAST(startYear AS INT) ASC NULLS LAST",
+        "Runtime (Longest)": "TRY_CAST(runtimeMinutes AS INT) DESC NULLS LAST",
+        "Runtime (Shortest)": "TRY_CAST(runtimeMinutes AS INT) ASC NULLS LAST",
+        "Title (A-Z)": "primaryTitle ASC NULLS LAST"
+    }
+    sort_by = st.selectbox("Sort generated picks by:", list(SORT_OPTIONS.keys()), key="sort_by")
+
+with col2:
+    num_picks = st.slider("How many picks?", 1, 100, 8, key="num_picks")
+
+generate_btn = st.button("🎲 Generate Picks", type="primary", use_container_width=True)
 
 # --- QUERY LOGIC ---
 if generate_btn:
@@ -121,7 +162,6 @@ if generate_btn:
             
             # --- RESULTS UI ---
             for _, row in df.iterrows():
-                # html.escape prevents XSS vulnerabilities
                 title = html.escape(str(row['primaryTitle']))
                 yr = html.escape(str(row['startYear']))
                 genres = html.escape(str(row['genres']).replace(',', ' • '))
@@ -147,5 +187,3 @@ if generate_btn:
                     </p>
                 </div>
                 """, unsafe_allow_html=True)
-else:
-    st.info("👈 Adjust the filters in the sidebar and click **Generate Picks** to find your next watch!")
