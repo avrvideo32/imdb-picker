@@ -49,12 +49,12 @@ with st.sidebar:
 
 # --- MAIN ACTION BAR ---
 SORT_OPTIONS = {
+    "Votes (Most Popular)": "numVotes DESC NULLS LAST",
     "Rating (High to Low)": "averageRating DESC NULLS LAST",
     "Keep them Random": "random()",   
     "Rating (Low to High)": "averageRating ASC NULLS LAST",
     "Year (Newest)": "TRY_CAST(startYear AS INT) DESC NULLS LAST",
     "Year (Oldest)": "TRY_CAST(startYear AS INT) ASC NULLS LAST",
-    "Votes (Most Popular)": "numVotes DESC NULLS LAST",
     "Runtime (Longest)": "TRY_CAST(runtimeMinutes AS INT) DESC NULLS LAST",
     "Runtime (Shortest)": "TRY_CAST(runtimeMinutes AS INT) ASC NULLS LAST",
     "Title (A-Z)": "primaryTitle ASC NULLS LAST"
