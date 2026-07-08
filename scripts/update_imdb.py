@@ -1,7 +1,7 @@
 import os
 import sys
 import requests
-import pandas as pd
+import duckdb
 from huggingface_hub import HfApi, login
 
 def main():
@@ -13,7 +13,7 @@ def main():
     ratings_file = "title.ratings.tsv.gz"
     parquet_file = "imdb_cache.parquet"
     
-    # 2. Download files
+    # 2. Download files (requests is still the easiest way to download the raw .gz files)
     print("Downloading title.basics.tsv.gz...")
     with requests.get(basics_url, stream=True) as r:
         r.raise_for_status()
@@ -28,52 +28,47 @@ def main():
             for chunk in r.iter_content(chunk_size=8192):
                 f.write(chunk)
                 
-    # 3. Read into Pandas
-    print("Reading TSV files...")
-    df_basics = pd.read_csv(basics_file, sep='\t', compression='gzip', dtype=str)
-    df_ratings = pd.read_csv(ratings_file, sep='\t', compression='gzip', dtype=str)
+    # 3. Process and Convert to Parquet using PURE DUCKDB
+    print("Processing data and converting to Parquet with DuckDB...")
+    con = duckdb.connect()
     
-    # --- 🚀 NEW: FILTER DATA TYPES ---
-    # Only keep the title types your Streamlit app actually uses
-    allowed_types = ['movie', 'tvMovie', 'tvSeries', 'tvMiniSeries']
-    print(f"Filtering dataset to only include: {allowed_types}...")
-    df_basics = df_basics[df_basics['titleType'].isin(allowed_types)]
-    print(f"Filtered down to {len(df_basics):,} titles.")
-    # ---------------------------------
-    
-    # Replace actual NaNs with the string '\N' to match IMDb format exactly
-    df_basics = df_basics.fillna('\\N')
-    df_ratings = df_ratings.fillna('\\N')
-    
-    # 4. Merge datasets
-    print("Merging datasets...")
-    df_merged = pd.merge(df_basics, df_ratings, on='tconst', how='left')
-    
-    # Fill missing ratings (for titles without ratings) with '\N'
-    df_merged['averageRating'] = df_merged['averageRating'].fillna('\\N').astype(str)
-    df_merged['numVotes'] = df_merged['numVotes'].fillna('\\N').astype(str)
-    
-    # 5. Save to Parquet
-    print(f"Saving to {parquet_file}...")
-    df_merged.to_parquet(parquet_file, index=False, engine='pyarrow')
+    # DuckDB can read .gz files directly! 
+    # read_csv_auto automatically detects the schema and handles the gzip compression.
+    # We use COALESCE to turn SQL NULLs back into the string '\N' so your Streamlit app doesn't break.
+    con.execute("""
+        COPY (
+            SELECT 
+                b.tconst,
+                COALESCE(b.primaryTitle, '\\N') as primaryTitle,
+                COALESCE(b.originalTitle, '\\N') as originalTitle,
+                COALESCE(b.titleType, '\\N') as titleType,
+                COALESCE(b.startYear::VARCHAR, '\\N') as startYear,
+                COALESCE(b.endYear::VARCHAR, '\\N') as endYear,
+                COALESCE(b.runtimeMinutes::VARCHAR, '\\N') as runtimeMinutes,
+                COALESCE(b.genres, '\\N') as genres,
+                b.isAdult,
+                COALESCE(r.averageRating::VARCHAR, '\\N') as averageRating,
+                COALESCE(r.numVotes::VARCHAR, '\\N') as numVotes
+            FROM read_csv_auto('title.basics.tsv.gz') b
+            LEFT JOIN read_csv_auto('title.ratings.tsv.gz') r
+            USING (tconst)
+            WHERE b.titleType IN ('movie', 'tvMovie', 'tvSeries', 'tvMiniSeries')
+        ) TO 'imdb_cache.parquet' (FORMAT PARQUET);
+    """)
     print("Parquet file created successfully!")
     
-    # 6. Upload to Hugging Face
+    # 4. Upload to Hugging Face
     hf_token = os.environ.get("HF_TOKEN")
     repo_id = os.environ.get("HF_REPO_ID")
     
-    # FAIL LOUDLY if secrets are missing
     if not hf_token or not repo_id:
         print("ERROR: HF_TOKEN or HF_REPO_ID environment variables are not set!")
-        print("Please add them in GitHub Settings -> Secrets and variables -> Actions")
         sys.exit(1)
         
     print(f"Uploading to Hugging Face repo: {repo_id}...")
     try:
         login(token=hf_token)
         api = HfApi()
-        
-        # Create the repo if it doesn't exist
         api.create_repo(repo_id=repo_id, repo_type="dataset", exist_ok=True)
         
         api.upload_file(
