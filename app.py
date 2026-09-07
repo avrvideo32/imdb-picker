@@ -84,16 +84,17 @@ def get_connection():
             raise RuntimeError("DuckDB could not load HTTP support.") from exc
 
     try:
+        # DuckDB does not reliably allow a parameter inside CREATE VIEW /
+        # read_parquet() across versions. Escape the URL and use it literally.
+        safe_url = DATASET_URL.replace("'", "''")
         con.execute(
-            "CREATE VIEW movie_view AS "
-            "SELECT * FROM read_parquet(?)",
-            [DATASET_URL],
+            f"CREATE VIEW movie_view AS "
+            f"SELECT * FROM read_parquet('{safe_url}')"
         )
     except Exception as exc:
         con.close()
         raise RuntimeError(
-            "Could not load the IMDb dataset. Check your internet connection "
-            "and the dataset URL."
+            f"Could not load the IMDb dataset: {exc}"
         ) from exc
     return con
 
@@ -304,9 +305,4 @@ if results:
                     ⭐ <strong>{rating}</strong>
                     <span style="opacity:.6;">({votes} votes)</span>
                     &nbsp;&nbsp;
-                    <a href="{url}" target="_blank">IMDb ↗</a>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+                    <a href="{url}" targ
