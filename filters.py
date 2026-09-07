@@ -1,67 +1,73 @@
 def build_where(values, genres, types):
+    """Build a parameterized DuckDB WHERE clause and its parameters."""
     clauses = []
     params = []
 
-    if values.get('min_votes', ''):
-        # Explicitly cast VARCHAR to INT for comparison
-        clauses.append("TRY_CAST(numVotes AS INT) >= ?")
-        params.append(int(values['min_votes']))
-        
-    if values.get('min_rating', ''):
-        # Explicitly cast VARCHAR to DOUBLE for comparison
-        clauses.append("TRY_CAST(averageRating AS DOUBLE) >= ?")
-        params.append(float(values['min_rating']))
-        
-    if values.get('year', ''):
-        clauses.append("startYear = ?")
-        params.append(str(values['year']))
-        
-    if values.get('decade', 'Any') != 'Any':
-        d = int(values['decade'])
-        clauses.append(f"TRY_CAST(startYear AS INT) BETWEEN {d} AND {d + 9}")
-        
-    if values.get('runtime_min', ''):
-        clauses.append("TRY_CAST(runtimeMinutes AS INT) >= ?")
-        params.append(int(values['runtime_min']))
-        
-    if values.get('runtime_max', ''):
-        clauses.append("TRY_CAST(runtimeMinutes AS INT) <= ?")
-        params.append(int(values['runtime_max']))
+    def add(condition, value):
+        clauses.append(condition)
+        params.append(value)
 
-    selected_types = [t for t, v in types.items() if v]
+    if values.get("min_votes"):
+        add("TRY_CAST(numVotes AS BIGINT) >= ?", int(values["min_votes"]))
+
+    if values.get("min_rating"):
+        add("TRY_CAST(averageRating AS DOUBLE) >= ?", float(values["min_rating"]))
+
+    year = values.get("year", "").strip()
+    if year:
+        add("TRY_CAST(startYear AS INT) = ?", int(year))
+
+    decade = values.get("decade", "Any")
+    if decade != "Any":
+        start = int(decade)
+        clauses.append("TRY_CAST(startYear AS INT) BETWEEN ? AND ?")
+        params.extend([start, start + 9])
+
+    if values.get("runtime_min"):
+        add("TRY_CAST(runtimeMinutes AS INT) >= ?", int(values["runtime_min"]))
+
+    if values.get("runtime_max"):
+        add("TRY_CAST(runtimeMinutes AS INT) <= ?", int(values["runtime_max"]))
+
+    selected_types = [title_type for title_type, enabled in types.items() if enabled]
     if selected_types:
-        placeholders = ", ".join(["?"] * len(selected_types))
+        placeholders = ", ".join("?" for _ in selected_types)
         clauses.append(f"titleType IN ({placeholders})")
         params.extend(selected_types)
 
-    selected_genres = [g for g, v in genres.items() if v]
-    if selected_genres:
-        genre_clauses = []
-        for g in selected_genres:
-            genre_clauses.append("genres LIKE ?")
-            params.append(f"%{g}%")
-        clauses.append("(" + " AND ".join(genre_clauses) + ")")
+    # IMDb's genre field is a comma-separated string. Matching comma-delimited
+    # values avoids accidental substring matches such as "War" vs "Award".
+    selected_genres = [genre for genre, enabled in genres.items() if enabled]
+    for genre in selected_genres:
+        clauses.append(
+            "(genres = ? OR genres LIKE ? OR genres LIKE ?)"
+        )
+        params.extend([genre, f"{genre},%", f"%,{genre},%"])
 
-    excluded_genres = values.get('excluded_genres', [])
-    if excluded_genres:
-        exclude_clauses = []
-        for g in excluded_genres:
-            exclude_clauses.append("genres NOT LIKE ?")
-            params.append(f"%{g}%")
-        clauses.append("(" + " AND ".join(exclude_clauses) + ")")
+    for genre in values.get("excluded_genres", []):
+        clauses.append(
+            "NOT (genres = ? OR genres LIKE ? OR genres LIKE ?)"
+        )
+        params.extend([genre, f"{genre},%", f"%,{genre},%"])
 
-    if not values.get('adult', False):
-        clauses.append("isAdult = 0")
+    if not values.get("adult", False):
+        clauses.append("TRY_CAST(isAdult AS INT) = 0")
 
-    search = values.get('search', '').strip()
+    search = values.get("search", "").strip()
     if search:
-        if values.get('fuzzy', False):
-            clauses.append("(jaro_winkler_similarity(lower(primaryTitle), ?) > 0.7 OR "
-                           "jaro_winkler_similarity(lower(originalTitle), ?) > 0.7)")
-            params.extend([search.lower(), search.lower()])
+        lowered = search.lower()
+        if values.get("fuzzy", False):
+            clauses.append(
+                "("
+                "jaro_winkler_similarity(lower(primaryTitle), ?) >= ? "
+                "OR jaro_winkler_similarity(lower(originalTitle), ?) >= ?"
+                ")"
+            )
+            params.extend([lowered, 0.70, lowered, 0.70])
         else:
-            clauses.append("(primaryTitle ILIKE ? OR originalTitle ILIKE ?)")
+            clauses.append(
+                "(primaryTitle ILIKE ? OR originalTitle ILIKE ?)"
+            )
             params.extend([f"%{search}%", f"%{search}%"])
 
-    where_sql = ' AND '.join(clauses) if clauses else '1=1'
-    return where_sql, params
+    return (" AND ".join(clauses) if clauses else "1=1"), params
