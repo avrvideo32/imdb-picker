@@ -305,4 +305,9 @@ if results:
                     ⭐ <strong>{rating}</strong>
                     <span style="opacity:.6;">({votes} votes)</span>
                     &nbsp;&nbsp;
-                    <a href="{url}" targ
+                    <a href="{url}" target="_blank">IMDb ↗</a>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
