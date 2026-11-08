@@ -226,9 +226,13 @@ def select_diverse_picks(candidates, num_picks, diversity_strength=80):
         else:
             contributions = []
             for dimension, weight in DIVERSITY_WEIGHTS.items():
-                categories = chosen_features[dimension]
+                categories = [
+                    category
+                    for category in chosen_features[dimension]
+                    if category != "Unknown"
+                ]
                 known_categories = available_categories[dimension]
-                if not known_categories:
+                if not categories or not known_categories:
                     continue
                 category_count = min(
                     counts[dimension][category] for category in categories
