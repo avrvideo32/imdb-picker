@@ -452,7 +452,7 @@ if results:
     )
 
     for index, row in enumerate(results):
-        title = html.escape(str(row.get("primaryTitle", "Untitled")))
+        title = str(row.get("primaryTitle", "Untitled"))
         year = html.escape(str(row.get("startYear", "N/A")))
         genres = html.escape(
             str(row.get("genres", "No Genre")).replace(",", " • ")
@@ -473,19 +473,9 @@ if results:
         origin_language = str(row.get("originalTitleLanguage") or "").strip()
         missing_origin_values = {"", r"\N", "Unknown", "nan", "None"}
         if origin_region not in missing_origin_values:
-            origin_details.append(
-                f"Original-title region: {html.escape(origin_region)}"
-            )
+            origin_details.append(f"Region: {origin_region}")
         if origin_language not in missing_origin_values:
-            origin_details.append(
-                f"Original-title language: {html.escape(origin_language)}"
-            )
-        origin_html = (
-            '<div style="opacity:.7;font-size:.85em;margin-bottom:7px;">'
-            + " &nbsp; · &nbsp; ".join(origin_details)
-            + "</div>"
-            if origin_details else ""
-        )
+            origin_details.append(f"Language: {origin_language}")
 
         card_col, action_col = st.columns([5, 1])
         with card_col:
@@ -493,7 +483,7 @@ if results:
             # This avoids HTML being surfaced as literal code by Markdown
             # rendering/sanitization and keeps the result card accessible.
             with st.container(border=True):
-                st.markdown(f"**[{title}]({url})**")
+                st.text(title)
                 st.caption(f"{year} · {title_type} · {runtime}")
                 st.write(genres.replace(" • ", " · "))
                 if origin_details:
