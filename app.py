@@ -330,9 +330,23 @@ if generate_btn:
     try:
         with st.spinner("Querying database..."):
             con = get_connection()
-            total = con.execute(
-                f"SELECT COUNT(*) FROM movie_view WHERE {where}", query_params
-            ).fetchone()[0]
+            total, region_count, language_count = con.execute(
+                f"""
+                SELECT
+                    COUNT(*),
+                    COUNT(*) FILTER (
+                        WHERE originalTitleRegion IS NOT NULL
+                          AND originalTitleRegion <> '\\N'
+                    ),
+                    COUNT(*) FILTER (
+                        WHERE originalTitleLanguage IS NOT NULL
+                          AND originalTitleLanguage <> '\\N'
+                    )
+                FROM movie_view
+                WHERE {where}
+                """,
+                query_params,
+            ).fetchone()
 
             if total:
                 sql = build_selection_query(
@@ -365,6 +379,13 @@ if generate_btn:
             st.success(
                 f"Found {total:,} eligible titles. Showing {len(df)} picks."
             )
+            if generation_mode == "Discovery" and not region_count and not language_count:
+                st.info(
+                    "Geographic clues aren't available in the currently hosted "
+                    "IMDb cache yet. Run the repository's weekly dataset-update "
+                    "workflow once to add original-title region and language. "
+                    "Popularity, rating, decade and genre diversity are active now."
+                )
             st.session_state["last_results"] = df.to_dict("records")
             st.session_state["last_total"] = total
             st.session_state["last_context"] = {
