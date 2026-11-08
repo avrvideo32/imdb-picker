@@ -39,23 +39,30 @@ st.markdown(
         position: relative;
     }
 
-    div[class*="st-key-imdb-card-"] a.imdb-card-link {
+    /* Use Streamlit's own link button as a real, full-card hit target. */
+    div[class*="st-key-imdb-card-"] [data-testid="stLinkButton"] {
         position: absolute;
         inset: 0;
-        z-index: 10;
-        display: block;
-        color: transparent !important;
-        font-size: 0;
-        line-height: 0;
-        text-decoration: none !important;
-        cursor: pointer;
-        background: transparent;
+        z-index: 20;
     }
 
-    div[class*="st-key-imdb-card-"] a.imdb-card-link:focus-visible {
+    div[class*="st-key-imdb-card-"] [data-testid="stLinkButton"] a {
+        display: block;
+        width: 100%;
+        height: 100%;
+        min-height: 100%;
+        padding: 0;
+        border: 0;
+        border-radius: 0.5rem;
+        background: transparent;
+        opacity: 0;
+        cursor: pointer;
+    }
+
+    div[class*="st-key-imdb-card-"] [data-testid="stLinkButton"] a:focus-visible {
+        opacity: 1;
         outline: 3px solid var(--primary-color);
         outline-offset: 3px;
-        border-radius: 0.5rem;
     }
 
     div[class*="st-key-imdb-card-"]:hover {
@@ -528,11 +535,13 @@ if results:
                         for detail in origin_details
                     ))
                 st.markdown(f"⭐ **{rating}** · {votes} votes · [IMDb ↗]({url})")
-                st.markdown(
-                    f'<a class="imdb-card-link" href="{url}" target="_blank" '
-                    f'rel="noopener noreferrer" '
-                    f'aria-label="Open {html.escape(title, quote=True)} on IMDb"></a>',
-                    unsafe_allow_html=True,
+                # A real Streamlit link element receives clicks reliably;
+                # CSS stretches it across the card without covering the action buttons.
+                st.link_button(
+                    f"Open {title} on IMDb",
+                    url,
+                    help=f"Open {title} on IMDb in a new tab",
+                    use_container_width=True,
                 )
 
         with action_col:
