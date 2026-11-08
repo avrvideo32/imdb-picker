@@ -26,7 +26,7 @@ The app reads imdb_cache.parquet from the Hugging Face dataset configured in app
 
 Export a list from IMDb as CSV and upload it in the sidebar under **Watched titles**. The file must include a column containing IMDb title IDs; IMDb's own export names this column Const.
 
-Only title IDs are imported. The app does not connect to IMDb, Trakt or another account, and it does not upload the CSV. Watched IDs marked manually during the current app session can be downloaded as a CSV and imported again later.
+Only title IDs are imported. The CSV is transmitted to the Streamlit app server so the IDs can be parsed; the application code does not write the original CSV to disk or forward it to IMDb, Trakt or another third party. Only upload lists to an app instance you trust or control. Watched IDs marked manually during the current app session can be downloaded as a CSV and imported again later.
 
 ## How Discovery works
 
