@@ -535,6 +535,13 @@ if results:
                     f'<div class="imdb-result-origin">{html.escape(origin_text)}</div>'
                 )
 
+            discovery_reason = str(row.get("_discovery_reason") or "").strip()
+            reason_html = (
+                f'<div class="imdb-result-origin">Batch contribution: '
+                f'{html.escape(discovery_reason)}</div>'
+                if discovery_reason else ""
+            )
+
             card_html = textwrap.dedent(
                 f"""
                 <a class="imdb-result-card" href="{html.escape(url, quote=True)}"
@@ -546,6 +553,7 @@ if results:
                     </div>
                     <div>{genres.replace(" • ", " · ")}</div>
                     {origin_html}
+                    {reason_html}
                     <div class="imdb-result-rating">
                         ⭐ <strong>{html.escape(str(rating))}</strong> ·
                         {html.escape(str(votes))} votes · IMDb ↗
