@@ -21,5 +21,8 @@ jobs:
       - name: Install test dependency
         run: python -m pip install --upgrade duckdb
 
+      - name: Compile application and scripts
+        run: python -m compileall -q app.py filters.py queries.py watched.py utils.py scripts tests
+
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
