@@ -9,7 +9,14 @@ import pandas as pd
 import streamlit as st
 
 from filters import build_where
-from queries import RESULT_COLUMNS, SORT_OPTIONS, add_exclusions, build_selection_query
+from queries import (
+    RESULT_COLUMNS,
+    SORT_OPTIONS,
+    add_exclusions,
+    build_selection_query,
+    select_diverse_picks,
+    sort_picks,
+)
 from watched import parse_watched_csv
 from utils import (
     GENRES,
@@ -89,9 +96,26 @@ def get_connection():
 
     try:
         safe_url = DATASET_URL.replace("'", "''")
+        parquet_source = f"read_parquet('{safe_url}')"
+        schema = con.execute(
+            f"DESCRIBE SELECT * FROM {parquet_source}"
+        ).fetchall()
+        existing_columns = {row[0] for row in schema}
+
+        # Keep older cached datasets usable until the next dataset refresh
+        # publishes the optional original-title region/language columns.
+        optional_columns = []
+        for column in ("originalTitleRegion", "originalTitleLanguage"):
+            if column not in existing_columns:
+                optional_columns.append(f"NULL::VARCHAR AS {column}")
+
+        additions = (
+            ", " + ", ".join(optional_columns)
+            if optional_columns else ""
+        )
         con.execute(
             f"CREATE VIEW movie_view AS "
-            f"SELECT * FROM read_parquet('{safe_url}')"
+            f"SELECT *{additions} FROM {parquet_source}"
         )
     except Exception as exc:
         con.close()
@@ -249,10 +273,23 @@ generation_mode = st.radio(
         "widely rated titles to the most popular. Your filters still apply."
     ),
 )
+discovery_strength = 80
 if generation_mode == "Discovery":
     st.caption(
-        "Discovery balances the batch across popularity levels. Sorting changes "
-        "the order of the selected titles, not the size of the filtered pool."
+        "Discovery balances popularity, rating, decade, genre and—when available—"
+        "original-title region and language. It samples a bounded random candidate "
+        "pool, then chooses titles that fill underrepresented categories."
+    )
+    discovery_strength = st.slider(
+        "Diversity strength",
+        min_value=0,
+        max_value=100,
+        value=80,
+        step=5,
+        help=(
+            "0 = random selection from the candidate pool. 100 = strongly favors "
+            "categories not yet represented in this batch."
+        ),
     )
 
 col1, col2 = st.columns(2)
@@ -293,15 +330,44 @@ if generate_btn:
     try:
         with st.spinner("Querying database..."):
             con = get_connection()
-            total = con.execute(
-                f"SELECT COUNT(*) FROM movie_view WHERE {where}", query_params
-            ).fetchone()[0]
+            total, region_count, language_count = con.execute(
+                f"""
+                SELECT
+                    COUNT(*),
+                    COUNT(*) FILTER (
+                        WHERE originalTitleRegion IS NOT NULL
+                          AND originalTitleRegion <> '\\N'
+                    ),
+                    COUNT(*) FILTER (
+                        WHERE originalTitleLanguage IS NOT NULL
+                          AND originalTitleLanguage <> '\\N'
+                    )
+                FROM movie_view
+                WHERE {where}
+                """,
+                query_params,
+            ).fetchone()
 
             if total:
                 sql = build_selection_query(
                     where, sort_by, num_picks, generation_mode
                 )
-                df = con.execute(sql, [*query_params, num_picks]).fetchdf()
+                if generation_mode == "Discovery":
+                    candidate_limit = min(20000, max(4000, num_picks * 150))
+                    candidate_df = con.execute(
+                        sql, [*query_params, candidate_limit]
+                    ).fetchdf()
+                    selected = select_diverse_picks(
+                        candidate_df.to_dict("records"),
+                        num_picks,
+                        diversity_strength,
+                    )
+                    selected = sort_picks(selected, sort_by)
+                    df = pd.DataFrame(selected)
+                else:
+                    df = con.execute(
+                        sql, [*query_params, num_picks]
+                    ).fetchdf()
             else:
                 df = None
 
@@ -313,6 +379,13 @@ if generate_btn:
             st.success(
                 f"Found {total:,} eligible titles. Showing {len(df)} picks."
             )
+            if generation_mode == "Discovery" and not region_count and not language_count:
+                st.info(
+                    "Geographic clues aren't available in the currently hosted "
+                    "IMDb cache yet. Run the repository's weekly dataset-update "
+                    "workflow once to add original-title region and language. "
+                    "Popularity, rating, decade and genre diversity are active now."
+                )
             st.session_state["last_results"] = df.to_dict("records")
             st.session_state["last_total"] = total
             st.session_state["last_context"] = {
@@ -395,6 +468,25 @@ if results:
         safe_tconst = html.escape(tconst)
         url = f"https://www.imdb.com/title/{safe_tconst}/"
 
+        origin_details = []
+        origin_region = str(row.get("originalTitleRegion") or "").strip()
+        origin_language = str(row.get("originalTitleLanguage") or "").strip()
+        missing_origin_values = {"", r"\N", "Unknown", "nan", "None"}
+        if origin_region not in missing_origin_values:
+            origin_details.append(
+                f"Original-title region: {html.escape(origin_region)}"
+            )
+        if origin_language not in missing_origin_values:
+            origin_details.append(
+                f"Original-title language: {html.escape(origin_language)}"
+            )
+        origin_html = (
+            '<div style="opacity:.7;font-size:.85em;margin-bottom:7px;">'
+            + " &nbsp; · &nbsp; ".join(origin_details)
+            + "</div>"
+            if origin_details else ""
+        )
+
         card_col, action_col = st.columns([5, 1])
         with card_col:
             st.markdown(
@@ -416,6 +508,7 @@ if results:
                     <div style="opacity:.8;font-size:.9em;margin-bottom:7px;">
                         {genres}
                     </div>
+                    {origin_html}
                     <div>
                         ⭐ <strong>{rating}</strong>
                         <span style="opacity:.6;">({votes} votes)</span>

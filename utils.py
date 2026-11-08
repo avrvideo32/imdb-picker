@@ -7,7 +7,7 @@ GENRES = [
 
 TITLE_TYPES = ["movie", "tvMovie", "tvSeries", "tvMiniSeries"]
 DEFAULT_TYPES = tuple(TITLE_TYPES)
-DECADES = ["Any"] + [str(year) for year in range(2020, 1899, -10)]
+DECADES = ["Any"] + [str(year) for year in range(2020, 1879, -10)]
 
 TYPE_MAP = {
     "movie": "Movie",

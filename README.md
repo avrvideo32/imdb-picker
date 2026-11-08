@@ -7,7 +7,7 @@ A Streamlit app for exploring IMDb titles with configurable filters and controll
 - Filter by title type, genre, decade, exact year, IMDb rating, vote count, runtime and title text.
 - Choose whether multiple included genres mean **Any** (OR) or **All** (AND).
 - Use **Standard Random** to select a random batch from the filtered pool.
-- Use **Discovery** to sample across four popularity quartiles, balancing lesser-known and widely rated titles.
+- Use **Discovery** to balance popularity, rating, decade, genre, original-title region and original-title language where available.
 - Sort the generated batch by rating, votes, year, runtime or title.
 - Import an IMDb watched-list CSV (the standard IMDb export includes a Const column) and exclude those titles.
 - Replace one pick without regenerating the rest of the batch.
@@ -30,9 +30,20 @@ Only title IDs are imported. The CSV is transmitted to the Streamlit app server 
 
 ## How Discovery works
 
-Discovery first applies all the active filters. It then divides the eligible pool into four similarly sized groups based on IMDb vote count, from the least-voted quartile to the most-voted quartile. It samples in a round-robin pattern across those groups, with random selection inside each group.
+Discovery first applies all active filters, then calculates popularity and rating quartiles over the complete eligible pool. It draws a bounded random candidate sample (at least 4,000 and at most 20,000 titles, scaled with the requested batch size) and greedily selects titles that fill underrepresented categories across six dimensions:
 
-The sort dropdown only changes the order of the selected batch. It does not rank the entire eligible database or guarantee that the globally highest-rated titles are returned.
+- IMDb vote-count quartile (less popular through more popular).
+- IMDb rating quartile (lower through higher rated).
+- Release decade.
+- IMDb genre tags. Multi-genre titles can contribute to more than one genre.
+- Original-title region from IMDb's `title.akas` data.
+- Original-title language from the same original-title record.
+
+The **Diversity strength** slider controls the trade-off. At 0, picks are random from the candidate sample. At 100, the selector strongly favors categories not yet represented in the current batch. Intermediate values mix both approaches.
+
+The region is an original-title metadata region, **not a verified production country**. IMDb's public non-commercial datasets do not provide a production-country field. The app deliberately avoids presenting title-release regions as production countries.
+
+The sort dropdown is applied after the diverse batch is selected. It changes the order, not the selection criteria, and it does not rank the entire eligible database or guarantee that globally highest-rated titles are returned.
 
 ## Refresh the IMDb dataset
 
@@ -41,7 +52,7 @@ The weekly GitHub Actions workflow runs scripts/update_imdb.py. Configure these 
 - HF_TOKEN: a Hugging Face token with permission to write to the dataset repository.
 - HF_REPO_ID: the target dataset repository ID, for example Avrozavr/Imdb.
 
-The updater downloads IMDb's title.basics and title.ratings files with retries and timeouts, builds a temporary Parquet file, validates that it contains unique title IDs, and only then uploads it. A failed download or validation does not publish a partial dataset.
+The updater downloads IMDb's title.basics, title.ratings and title.akas files with retries and timeouts, builds a temporary Parquet file, extracts the region and language for original-title entries, validates the schema and unique title IDs, and only then uploads it. The additional title.akas download is substantially larger than the ratings file. After deploying the new code, run the **Weekly IMDb Dataset Update** workflow once from GitHub Actions to populate the new region/language columns; the app remains compatible with the older cache until then. A failed download or validation does not publish a partial dataset.
 
 ## Notes
 
