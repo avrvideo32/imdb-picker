@@ -12,6 +12,7 @@ from urllib3.util.retry import Retry
 
 BASICS_URL = "https://datasets.imdbws.com/title.basics.tsv.gz"
 RATINGS_URL = "https://datasets.imdbws.com/title.ratings.tsv.gz"
+AKAS_URL = "https://datasets.imdbws.com/title.akas.tsv.gz"
 
 
 def build_session():
@@ -48,17 +49,29 @@ def download_file(session, url, destination):
     print(f"Downloaded {total_bytes:,} bytes.")
 
 
-def create_dataset(basics_file, ratings_file, parquet_file):
-    print("Processing IMDb data and converting it to Parquet...")
+def create_dataset(basics_file, ratings_file, akas_file, parquet_file):
+    print("Processing IMDb data and building original-title region/language metadata...")
     con = duckdb.connect()
     try:
         basics_path = str(basics_file).replace("\\", "/").replace("'", "''")
         ratings_path = str(ratings_file).replace("\\", "/").replace("'", "''")
+        akas_path = str(akas_file).replace("\\", "/").replace("'", "''")
         parquet_path = str(parquet_file).replace("\\", "/").replace("'", "''")
 
         con.execute(
             f"""
             COPY (
+                WITH original_akas AS (
+                    SELECT
+                        titleId,
+                        arg_min(region, TRY_CAST(ordering AS INTEGER))
+                            AS originalTitleRegion,
+                        arg_min(language, TRY_CAST(ordering AS INTEGER))
+                            AS originalTitleLanguage
+                    FROM read_csv_auto('{akas_path}', delim='\\t')
+                    WHERE TRY_CAST(isOriginalTitle AS INTEGER) = 1
+                    GROUP BY titleId
+                )
                 SELECT
                     b.tconst,
                     COALESCE(b.primaryTitle, '\\N') AS primaryTitle,
@@ -70,28 +83,64 @@ def create_dataset(basics_file, ratings_file, parquet_file):
                     COALESCE(b.genres, '\\N') AS genres,
                     b.isAdult,
                     COALESCE(r.averageRating::VARCHAR, '\\N') AS averageRating,
-                    COALESCE(r.numVotes::VARCHAR, '\\N') AS numVotes
-                FROM read_csv_auto('{basics_path}') b
-                LEFT JOIN read_csv_auto('{ratings_path}') r
-                USING (tconst)
+                    COALESCE(r.numVotes::VARCHAR, '\\N') AS numVotes,
+                    COALESCE(a.originalTitleRegion, '\\N') AS originalTitleRegion,
+                    COALESCE(a.originalTitleLanguage, '\\N') AS originalTitleLanguage
+                FROM read_csv_auto('{basics_path}', delim='\\t') b
+                LEFT JOIN read_csv_auto('{ratings_path}', delim='\\t') r
+                    USING (tconst)
+                LEFT JOIN original_akas a
+                    ON a.titleId = b.tconst
                 WHERE b.titleType IN ('movie', 'tvMovie', 'tvSeries', 'tvMiniSeries')
             ) TO '{parquet_path}' (FORMAT PARQUET);
             """
         )
 
+        parquet_ref = f"read_parquet('{parquet_path}')"
         row_count = con.execute(
-            f"SELECT COUNT(*) FROM read_parquet('{parquet_path}')"
+            f"SELECT COUNT(*) FROM {parquet_ref}"
         ).fetchone()[0]
         if row_count <= 0:
             raise RuntimeError("The generated Parquet dataset contains no titles.")
 
         distinct_ids = con.execute(
-            f"SELECT COUNT(DISTINCT tconst) FROM read_parquet('{parquet_path}')"
+            f"SELECT COUNT(DISTINCT tconst) FROM {parquet_ref}"
         ).fetchone()[0]
         if distinct_ids != row_count:
             raise RuntimeError(
                 "Dataset validation failed: IMDb title IDs are not unique."
             )
+
+        columns = {
+            row[0] for row in con.execute(
+                f"DESCRIBE SELECT * FROM {parquet_ref}"
+            ).fetchall()
+        }
+        required = {
+            "tconst", "primaryTitle", "genres", "averageRating", "numVotes",
+            "originalTitleRegion", "originalTitleLanguage",
+        }
+        missing = required - columns
+        if missing:
+            raise RuntimeError(
+                "Dataset validation failed; missing columns: "
+                + ", ".join(sorted(missing))
+            )
+
+        region_count, language_count = con.execute(
+            f"""
+            SELECT
+                COUNT(*) FILTER (
+                    WHERE originalTitleRegion IS NOT NULL
+                      AND originalTitleRegion <> '\\N'
+                ),
+                COUNT(*) FILTER (
+                    WHERE originalTitleLanguage IS NOT NULL
+                      AND originalTitleLanguage <> '\\N'
+                )
+            FROM {parquet_ref}
+            """
+        ).fetchone()
 
         size = Path(parquet_file).stat().st_size
         if size <= 0:
@@ -99,6 +148,8 @@ def create_dataset(basics_file, ratings_file, parquet_file):
 
         print(
             f"Dataset validated: {row_count:,} titles, "
+            f"{region_count:,} with an original-title region, "
+            f"{language_count:,} with an original-title language, "
             f"{size / (1024 * 1024):.1f} MiB."
         )
         return row_count
@@ -119,16 +170,18 @@ def main():
         temp_path = Path(temp_dir)
         basics_file = temp_path / "title.basics.tsv.gz"
         ratings_file = temp_path / "title.ratings.tsv.gz"
+        akas_file = temp_path / "title.akas.tsv.gz"
         parquet_file = temp_path / "imdb_cache.parquet"
 
         session = build_session()
         try:
             download_file(session, BASICS_URL, basics_file)
             download_file(session, RATINGS_URL, ratings_file)
+            download_file(session, AKAS_URL, akas_file)
         finally:
             session.close()
 
-        create_dataset(basics_file, ratings_file, parquet_file)
+        create_dataset(basics_file, ratings_file, akas_file, parquet_file)
 
         print(f"Uploading validated dataset to Hugging Face repo: {repo_id}...")
         try:
