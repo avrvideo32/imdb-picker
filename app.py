@@ -430,13 +430,6 @@ if generate_btn:
             st.success(
                 f"Found {total:,} eligible titles. Showing {len(df)} picks."
             )
-            if generation_mode == "Discovery" and not region_count and not language_count:
-                st.info(
-                    "Geographic clues aren't available in the currently hosted "
-                    "IMDb cache for these filters. Popularity, rating, decade and "
-                    "genre diversity are still active. The updater now derives these "
-                    "clues from the first available AKA records."
-                )
             st.session_state["last_results"] = df.to_dict("records")
             st.session_state["last_total"] = total
             st.session_state["last_context"] = {
