@@ -31,6 +31,42 @@ from utils import (
 
 st.set_page_config(page_title="IMDb Picker", page_icon="🎬", layout="centered")
 
+
+st.markdown(
+    """
+    <style>
+    div[class*="st-key-imdb-card-"] {
+        position: relative;
+    }
+
+    div[class*="st-key-imdb-card-"] a.imdb-card-link {
+        position: absolute;
+        inset: 0;
+        z-index: 10;
+        display: block;
+        color: transparent !important;
+        font-size: 0;
+        line-height: 0;
+        text-decoration: none !important;
+        cursor: pointer;
+        background: transparent;
+    }
+
+    div[class*="st-key-imdb-card-"] a.imdb-card-link:focus-visible {
+        outline: 3px solid var(--primary-color);
+        outline-offset: 3px;
+        border-radius: 0.5rem;
+    }
+
+    div[class*="st-key-imdb-card-"]:hover {
+        cursor: pointer;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
 DATASET_URL = (
     "https://huggingface.co/datasets/Avrozavr/Imdb/"
     "resolve/main/imdb_cache.parquet"
@@ -482,7 +518,7 @@ if results:
             # Use native Streamlit elements instead of embedding raw HTML.
             # This avoids HTML being surfaced as literal code by Markdown
             # rendering/sanitization and keeps the result card accessible.
-            with st.container(border=True):
+            with st.container(border=True, key=f"imdb-card-{index}"):
                 st.text(title)
                 st.caption(f"{year} · {title_type} · {runtime}")
                 st.write(genres.replace(" • ", " · "))
@@ -492,6 +528,12 @@ if results:
                         for detail in origin_details
                     ))
                 st.markdown(f"⭐ **{rating}** · {votes} votes · [IMDb ↗]({url})")
+                st.markdown(
+                    f'<a class="imdb-card-link" href="{url}" target="_blank" '
+                    f'rel="noopener noreferrer" '
+                    f'aria-label="Open {html.escape(title, quote=True)} on IMDb"></a>',
+                    unsafe_allow_html=True,
+                )
 
         with action_col:
             if st.button("↻ Replace", key=f"replace_{index}", use_container_width=True):
