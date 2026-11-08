@@ -489,36 +489,19 @@ if results:
 
         card_col, action_col = st.columns([5, 1])
         with card_col:
-            st.markdown(
-                f"""
-                <div style="
-                    border: 1px solid rgba(128,128,128,.25);
-                    border-left: 4px solid #ff4b4b;
-                    border-radius: 8px;
-                    padding: 12px 14px;
-                    margin: 0 0 12px 0;
-                ">
-                    <a href="{url}" target="_blank"
-                       style="text-decoration:none;color:inherit;">
-                        <h3 style="margin:0 0 7px 0;">{title}</h3>
-                    </a>
-                    <div style="opacity:.75;font-size:.9em;margin-bottom:7px;">
-                        <strong>{year}</strong> &bull; {title_type} &bull; {runtime}
-                    </div>
-                    <div style="opacity:.8;font-size:.9em;margin-bottom:7px;">
-                        {genres}
-                    </div>
-                    {origin_html}
-                    <div>
-                        ⭐ <strong>{rating}</strong>
-                        <span style="opacity:.6;">({votes} votes)</span>
-                        &nbsp;&nbsp;
-                        <a href="{url}" target="_blank">IMDb ↗</a>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+            # Use native Streamlit elements instead of embedding raw HTML.
+            # This avoids HTML being surfaced as literal code by Markdown
+            # rendering/sanitization and keeps the result card accessible.
+            with st.container(border=True):
+                st.markdown(f"**[{title}]({url})**")
+                st.caption(f"{year} · {title_type} · {runtime}")
+                st.write(genres.replace(" • ", " · "))
+                if origin_details:
+                    st.caption(" · ".join(
+                        detail.replace("Original-title ", "")
+                        for detail in origin_details
+                    ))
+                st.markdown(f"⭐ **{rating}** · {votes} votes · [IMDb ↗]({url})")
 
         with action_col:
             if st.button("↻ Replace", key=f"replace_{index}", use_container_width=True):
