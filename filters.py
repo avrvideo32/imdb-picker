@@ -7,13 +7,13 @@ def build_where(values, genres, types):
         clauses.append(condition)
         params.append(value)
 
-    if values.get("min_votes"):
+    if values.get("min_votes") not in (None, ""):
         add("TRY_CAST(numVotes AS BIGINT) >= ?", int(values["min_votes"]))
 
-    if values.get("min_rating"):
+    if values.get("min_rating") not in (None, ""):
         add("TRY_CAST(averageRating AS DOUBLE) >= ?", float(values["min_rating"]))
 
-    year = values.get("year", "").strip()
+    year = str(values.get("year", "")).strip()
     if year:
         add("TRY_CAST(startYear AS INT) = ?", int(year))
 
@@ -23,10 +23,10 @@ def build_where(values, genres, types):
         clauses.append("TRY_CAST(startYear AS INT) BETWEEN ? AND ?")
         params.extend([start, start + 9])
 
-    if values.get("runtime_min"):
+    if values.get("runtime_min") not in (None, ""):
         add("TRY_CAST(runtimeMinutes AS INT) >= ?", int(values["runtime_min"]))
 
-    if values.get("runtime_max"):
+    if values.get("runtime_max") not in (None, ""):
         add("TRY_CAST(runtimeMinutes AS INT) <= ?", int(values["runtime_max"]))
 
     selected_types = [title_type for title_type, enabled in types.items() if enabled]
@@ -35,25 +35,29 @@ def build_where(values, genres, types):
         clauses.append(f"titleType IN ({placeholders})")
         params.extend(selected_types)
 
-    # IMDb's genre field is a comma-separated string. Matching comma-delimited
-    # values avoids accidental substring matches such as "War" vs "Award".
+    # IMDb stores genres as comma-separated tokens. Split the field into a
+    # list so a genre is matched exactly, including when it is the final token.
     selected_genres = [genre for genre, enabled in genres.items() if enabled]
-    for genre in selected_genres:
-        clauses.append(
-            "(genres = ? OR genres LIKE ? OR genres LIKE ?)"
-        )
-        params.extend([genre, f"{genre},%", f"%,{genre},%"])
+    if selected_genres:
+        genre_expr = "list_contains(string_split(COALESCE(genres, ''), ','), ?)"
+        if values.get("genre_match", "Any selected genre") == "All selected genres":
+            for genre in selected_genres:
+                clauses.append(genre_expr)
+                params.append(genre)
+        else:
+            clauses.append("(" + " OR ".join(genre_expr for _ in selected_genres) + ")")
+            params.extend(selected_genres)
 
     for genre in values.get("excluded_genres", []):
         clauses.append(
-            "NOT (genres = ? OR genres LIKE ? OR genres LIKE ?)"
+            "NOT list_contains(string_split(COALESCE(genres, ''), ','), ?)"
         )
-        params.extend([genre, f"{genre},%", f"%,{genre},%"])
+        params.append(genre)
 
     if not values.get("adult", False):
         clauses.append("TRY_CAST(isAdult AS INT) = 0")
 
-    search = values.get("search", "").strip()
+    search = str(values.get("search", "")).strip()
     if search:
         lowered = search.lower()
         if values.get("fuzzy", False):
@@ -65,9 +69,7 @@ def build_where(values, genres, types):
             )
             params.extend([lowered, 0.70, lowered, 0.70])
         else:
-            clauses.append(
-                "(primaryTitle ILIKE ? OR originalTitle ILIKE ?)"
-            )
+            clauses.append("(primaryTitle ILIKE ? OR originalTitle ILIKE ?)")
             params.extend([f"%{search}%", f"%{search}%"])
 
     return (" AND ".join(clauses) if clauses else "1=1"), params
