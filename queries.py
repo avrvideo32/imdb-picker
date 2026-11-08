@@ -58,14 +58,18 @@ def build_selection_query(where, sort_by, num_picks, generation_mode):
                 FROM movie_view
                 WHERE {where}
             ),
+            shuffled AS (
+                SELECT *, random() AS shuffle_key
+                FROM candidates
+            ),
             randomized AS (
                 SELECT
                     *,
                     ROW_NUMBER() OVER (
                         PARTITION BY popularity_band
-                        ORDER BY random()
+                        ORDER BY shuffle_key
                     ) AS band_position
-                FROM candidates
+                FROM shuffled
             ),
             random_batch AS (
                 SELECT
