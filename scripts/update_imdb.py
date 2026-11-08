@@ -4,10 +4,6 @@ import tempfile
 from pathlib import Path
 
 import duckdb
-import requests
-from huggingface_hub import HfApi, login
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 
 BASICS_URL = "https://datasets.imdbws.com/title.basics.tsv.gz"
@@ -16,6 +12,10 @@ AKAS_URL = "https://datasets.imdbws.com/title.akas.tsv.gz"
 
 
 def build_session():
+    import requests
+    from requests.adapters import HTTPAdapter
+    from urllib3.util.retry import Retry
+
     retry = Retry(
         total=5,
         connect=5,
@@ -185,6 +185,8 @@ def main():
 
         print(f"Uploading validated dataset to Hugging Face repo: {repo_id}...")
         try:
+            from huggingface_hub import HfApi, login
+
             login(token=hf_token)
             api = HfApi()
             api.create_repo(repo_id=repo_id, repo_type="dataset", exist_ok=True)
