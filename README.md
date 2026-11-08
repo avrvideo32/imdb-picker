@@ -7,7 +7,7 @@ A Streamlit app for exploring IMDb titles with configurable filters and controll
 - Filter by title type, genre, decade, exact year, IMDb rating, vote count, runtime and title text.
 - Choose whether multiple included genres mean **Any** (OR) or **All** (AND).
 - Use **Standard Random** to select a random batch from the filtered pool.
-- Use **Discovery** to sample across four popularity quartiles, balancing lesser-known and widely rated titles.
+- Use **Discovery** to balance popularity, rating, decade, genre, original-title region and original-title language where available.
 - Sort the generated batch by rating, votes, year, runtime or title.
 - Import an IMDb watched-list CSV (the standard IMDb export includes a Const column) and exclude those titles.
 - Replace one pick without regenerating the rest of the batch.
@@ -52,7 +52,7 @@ The weekly GitHub Actions workflow runs scripts/update_imdb.py. Configure these 
 - HF_TOKEN: a Hugging Face token with permission to write to the dataset repository.
 - HF_REPO_ID: the target dataset repository ID, for example Avrozavr/Imdb.
 
-The updater downloads IMDb's title.basics, title.ratings and title.akas files with retries and timeouts, builds a temporary Parquet file, extracts the region and language for original-title entries, validates the schema and unique title IDs, and only then uploads it. The additional title.akas download is substantially larger than the ratings file. A failed download or validation does not publish a partial dataset.
+The updater downloads IMDb's title.basics, title.ratings and title.akas files with retries and timeouts, builds a temporary Parquet file, extracts the region and language for original-title entries, validates the schema and unique title IDs, and only then uploads it. The additional title.akas download is substantially larger than the ratings file. After deploying the new code, run the **Weekly IMDb Dataset Update** workflow once from GitHub Actions to populate the new region/language columns; the app remains compatible with the older cache until then. A failed download or validation does not publish a partial dataset.
 
 ## Notes
 
