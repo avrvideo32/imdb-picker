@@ -2,7 +2,6 @@ import hashlib
 import html
 import json
 import os
-import re
 from pathlib import Path
 
 import duckdb
@@ -10,6 +9,8 @@ import pandas as pd
 import streamlit as st
 
 from filters import build_where
+from queries import RESULT_COLUMNS, SORT_OPTIONS, add_exclusions, build_selection_query
+from watched import parse_watched_csv
 from utils import (
     GENRES,
     TITLE_TYPES,
@@ -29,17 +30,7 @@ DATASET_URL = (
 )
 DEFAULTS_FILE = Path(__file__).with_name("user_defaults.json")
 
-SORT_OPTIONS = {
-    "Votes (Most Popular)": "TRY_CAST(numVotes AS BIGINT) DESC NULLS LAST",
-    "Keep them Random": "random()",
-    "Rating (High to Low)": "TRY_CAST(averageRating AS DOUBLE) DESC NULLS LAST",
-    "Rating (Low to High)": "TRY_CAST(averageRating AS DOUBLE) ASC NULLS LAST",
-    "Year (Newest)": "TRY_CAST(startYear AS INT) DESC NULLS LAST",
-    "Year (Oldest)": "TRY_CAST(startYear AS INT) ASC NULLS LAST",
-    "Runtime (Longest)": "TRY_CAST(runtimeMinutes AS INT) DESC NULLS LAST",
-    "Runtime (Shortest)": "TRY_CAST(runtimeMinutes AS INT) ASC NULLS LAST",
-    "Title (A-Z)": "primaryTitle ASC NULLS LAST",
-}
+
 
 DEFAULT_KEYS = [
     "min_votes", "min_rating", "runtime_min", "runtime_max",
@@ -47,16 +38,7 @@ DEFAULT_KEYS = [
     "selected_types", "selected_genres", "excluded_genres", "genre_match",
 ]
 
-RESULT_COLUMNS = """
-    tconst,
-    primaryTitle,
-    COALESCE(NULLIF(startYear, '\\N'), 'N/A') AS startYear,
-    COALESCE(NULLIF(genres, '\\N'), 'No Genre') AS genres,
-    titleType,
-    NULLIF(runtimeMinutes, '\\N') AS runtimeMinutes,
-    averageRating,
-    numVotes
-"""
+
 
 
 def load_defaults():
@@ -154,23 +136,6 @@ def current_watched_ids():
     )
 
 
-def add_exclusions(where, params, watched_ids=None, excluded_ids=None):
-    """Append safe, parameterized IMDb-ID exclusions to a WHERE clause."""
-    clauses = [where]
-    query_params = list(params)
-
-    watched_ids = sorted(set(watched_ids or []))
-    if watched_ids:
-        clauses.append("tconst NOT IN (SELECT UNNEST(?))")
-        query_params.append(watched_ids)
-
-    excluded_ids = sorted(set(excluded_ids or []))
-    if excluded_ids:
-        placeholders = ", ".join("?" for _ in excluded_ids)
-        clauses.append(f"tconst NOT IN ({placeholders})")
-        query_params.extend(excluded_ids)
-
-    return " AND ".join(f"({clause})" for clause in clauses), query_params
 
 
 def validate_filters(values):
@@ -190,94 +155,8 @@ def validate_filters(values):
     return errors
 
 
-def build_selection_query(where, sort_by, num_picks, generation_mode):
-    """Return SQL for standard random sampling or popularity-balanced discovery."""
-    order_clause = SORT_OPTIONS[sort_by]
-
-    if generation_mode == "Discovery":
-        # NTILE divides the filtered pool into four similarly sized popularity
-        # bands. Sampling round-robin gives the batch a mix of obscure and
-        # widely rated titles without requiring an external recommendation API.
-        return f"""
-            WITH candidates AS (
-                SELECT
-                    {RESULT_COLUMNS},
-                    NTILE(4) OVER (
-                        ORDER BY TRY_CAST(numVotes AS BIGINT) ASC NULLS FIRST
-                    ) AS popularity_band
-                FROM movie_view
-                WHERE {where}
-            ),
-            randomized AS (
-                SELECT
-                    *,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY popularity_band
-                        ORDER BY random()
-                    ) AS band_position
-                FROM candidates
-            ),
-            random_batch AS (
-                SELECT {", ".join([
-                    "tconst", "primaryTitle", "startYear", "genres",
-                    "titleType", "runtimeMinutes", "averageRating", "numVotes"
-                ])}
-                FROM randomized
-                ORDER BY band_position, popularity_band
-                LIMIT ?
-            )
-            SELECT *
-            FROM random_batch
-            ORDER BY {order_clause}
-        """
-
-    if sort_by == "Keep them Random":
-        return f"""
-            SELECT {RESULT_COLUMNS}
-            FROM movie_view
-            WHERE {where}
-            ORDER BY random()
-            LIMIT ?
-        """
-
-    return f"""
-        WITH random_batch AS (
-            SELECT {RESULT_COLUMNS}
-            FROM movie_view
-            WHERE {where}
-            ORDER BY random()
-            LIMIT ?
-        )
-        SELECT *
-        FROM random_batch
-        ORDER BY {order_clause}
-    """
 
 
-def parse_watched_csv(raw_bytes):
-    """Extract IMDb title IDs from an IMDb-export-style CSV."""
-    frame = pd.read_csv(pd.io.common.BytesIO(raw_bytes), dtype=str, keep_default_na=False)
-    columns = {str(column).strip().casefold(): column for column in frame.columns}
-    id_column = None
-    for candidate in ("const", "tconst", "imdb id", "imdb_id", "title id", "title_id"):
-        if candidate in columns:
-            id_column = columns[candidate]
-            break
-
-    if id_column is None:
-        raise ValueError(
-            "Couldn't find an IMDb ID column. IMDb exports normally call it 'Const'."
-        )
-
-    ids = set()
-    for value in frame[id_column]:
-        match = re.search(r"tt\d+", str(value))
-        if match:
-            ids.add(match.group(0))
-
-    if not ids:
-        raise ValueError("No IMDb title IDs (for example, tt0111161) were found.")
-    return sorted(ids)
 
 
 with st.sidebar:
