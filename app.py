@@ -360,7 +360,7 @@ if generate_btn:
                     selected = select_diverse_picks(
                         candidate_df.to_dict("records"),
                         num_picks,
-                        diversity_strength,
+                        discovery_strength,
                     )
                     selected = sort_picks(selected, sort_by)
                     df = pd.DataFrame(selected)
