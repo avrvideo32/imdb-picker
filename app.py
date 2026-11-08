@@ -2,6 +2,7 @@ import hashlib
 import html
 import json
 import os
+import textwrap
 from pathlib import Path
 
 import duckdb
@@ -540,7 +541,7 @@ if results:
                     f'<div class="imdb-result-origin">{html.escape(origin_text)}</div>'
                 )
 
-            st.markdown(
+            card_html = textwrap.dedent(
                 f"""
                 <a class="imdb-result-card" href="{html.escape(url, quote=True)}"
                    target="_blank" rel="noopener noreferrer"
@@ -556,9 +557,9 @@ if results:
                         {html.escape(str(votes))} votes · IMDb ↗
                     </div>
                 </a>
-                """,
-                unsafe_allow_html=True,
-            )
+                """
+            ).strip()
+            st.markdown(card_html, unsafe_allow_html=True)
 
         with action_col:
             if st.button("↻ Replace", key=f"replace_{index}", use_container_width=True):
