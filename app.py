@@ -559,7 +559,7 @@ if results:
                 </a>
                 """
             ).strip()
-            st.markdown(card_html, unsafe_allow_html=True)
+            st.html(card_html)
 
         with action_col:
             if st.button("↻ Replace", key=f"replace_{index}", use_container_width=True):
