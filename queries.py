@@ -174,6 +174,23 @@ def select_diverse_picks(candidates, num_picks, diversity_strength=80):
     selected = []
     counts = defaultdict(Counter)
     total_weight = sum(DIVERSITY_WEIGHTS.values())
+    available_categories = {
+        dimension: {
+            category
+            for features in feature_map.values()
+            for category in features[dimension]
+            if category != "Unknown"
+        }
+        for dimension in DIVERSITY_WEIGHTS
+    }
+    reason_labels = {
+        "popularity": "popularity band",
+        "rating": "rating band",
+        "decade": "decade",
+        "genre": "genre",
+        "region": "AKA region clue",
+        "language": "AKA language clue",
+    }
 
     while remaining and len(selected) < num_picks:
         best_index = None
@@ -198,9 +215,50 @@ def select_diverse_picks(candidates, num_picks, diversity_strength=80):
                 best_index = index
 
         chosen = remaining.pop(best_index)
+        chosen_features = feature_map[id(chosen)]
+
+        if strength <= 0:
+            chosen["_discovery_reason"] = "Random pick from the candidate pool."
+        elif not selected:
+            chosen["_discovery_reason"] = (
+                "Starting point for this batch; there are no earlier picks to balance against."
+            )
+        else:
+            contributions = []
+            for dimension, weight in DIVERSITY_WEIGHTS.items():
+                categories = chosen_features[dimension]
+                known_categories = available_categories[dimension]
+                if not known_categories:
+                    continue
+                category_count = min(
+                    counts[dimension][category] for category in categories
+                )
+                average_count = sum(
+                    counts[dimension][category]
+                    for category in known_categories
+                ) / len(known_categories)
+                if category_count < average_count:
+                    contributions.append((weight, reason_labels[dimension]))
+
+            contributions.sort(reverse=True)
+            if contributions:
+                labels = [label for _, label in contributions[:2]]
+                if len(labels) == 1:
+                    chosen["_discovery_reason"] = (
+                        f"Adds an underrepresented {labels[0]} to this batch."
+                    )
+                else:
+                    chosen["_discovery_reason"] = (
+                        f"Adds underrepresented {labels[0]} and {labels[1]} categories to this batch."
+                    )
+            else:
+                chosen["_discovery_reason"] = (
+                    "Helps balance the mix of titles in this batch."
+                )
+
         selected.append(chosen)
 
-        for dimension, categories in feature_map[id(chosen)].items():
+        for dimension, categories in chosen_features.items():
             for category in categories:
                 counts[dimension][category] += 1
 
