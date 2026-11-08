@@ -116,6 +116,7 @@ class QueryTests(unittest.TestCase):
         picks = select_diverse_picks(candidates, 8, diversity_strength=100)
         self.assertEqual(len(picks), 8)
         self.assertEqual(len({pick["tconst"] for pick in picks}), 8)
+        self.assertTrue(all(pick.get("_discovery_reason") for pick in picks))
         self.assertEqual(
             {pick["popularity_band"] for pick in picks}, {1, 2, 3, 4}
         )
