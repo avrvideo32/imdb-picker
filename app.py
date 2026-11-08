@@ -537,7 +537,7 @@ if results:
 
             discovery_reason = str(row.get("_discovery_reason") or "").strip()
             reason_html = (
-                f'<div class="imdb-result-origin">Why this pick: '
+                f'<div class="imdb-result-origin">Batch contribution: '
                 f'{html.escape(discovery_reason)}</div>'
                 if discovery_reason else ""
             )
