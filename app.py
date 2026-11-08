@@ -447,6 +447,25 @@ if results:
         safe_tconst = html.escape(tconst)
         url = f"https://www.imdb.com/title/{safe_tconst}/"
 
+        origin_details = []
+        origin_region = str(row.get("originalTitleRegion") or "").strip()
+        origin_language = str(row.get("originalTitleLanguage") or "").strip()
+        missing_origin_values = {"", r"\N", "Unknown", "nan", "None"}
+        if origin_region not in missing_origin_values:
+            origin_details.append(
+                f"Original-title region: {html.escape(origin_region)}"
+            )
+        if origin_language not in missing_origin_values:
+            origin_details.append(
+                f"Original-title language: {html.escape(origin_language)}"
+            )
+        origin_html = (
+            '<div style="opacity:.7;font-size:.85em;margin-bottom:7px;">'
+            + " &nbsp; · &nbsp; ".join(origin_details)
+            + "</div>"
+            if origin_details else ""
+        )
+
         card_col, action_col = st.columns([5, 1])
         with card_col:
             st.markdown(
@@ -468,11 +487,7 @@ if results:
                     <div style="opacity:.8;font-size:.9em;margin-bottom:7px;">
                         {genres}
                     </div>
-                    <div style="opacity:.7;font-size:.85em;margin-bottom:7px;">
-                        Original-title region: {html.escape(str(row.get("originalTitleRegion") or "Unknown"))}
-                        &nbsp; · &nbsp;
-                        Original-title language: {html.escape(str(row.get("originalTitleLanguage") or "Unknown"))}
-                    </div>
+                    {origin_html}
                     <div>
                         ⭐ <strong>{rating}</strong>
                         <span style="opacity:.6;">({votes} votes)</span>
