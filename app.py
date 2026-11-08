@@ -35,38 +35,44 @@ st.set_page_config(page_title="IMDb Picker", page_icon="🎬", layout="centered"
 st.markdown(
     """
     <style>
-    div[class*="st-key-imdb-card-"] {
-        position: relative;
-    }
-
-    /* Use Streamlit's own link button as a real, full-card hit target. */
-    div[class*="st-key-imdb-card-"] [data-testid="stLinkButton"] {
-        position: absolute;
-        inset: 0;
-        z-index: 20;
-    }
-
-    div[class*="st-key-imdb-card-"] [data-testid="stLinkButton"] a {
+    a.imdb-result-card {
         display: block;
-        width: 100%;
-        height: 100%;
-        min-height: 100%;
-        padding: 0;
-        border: 0;
-        border-radius: 0.5rem;
-        background: transparent;
-        opacity: 0;
+        color: inherit !important;
+        text-decoration: none !important;
+        border: 1px solid rgba(128, 128, 128, 0.35);
+        border-radius: 0.75rem;
+        padding: 1rem;
+        margin-bottom: 0.5rem;
+        transition: border-color 120ms ease, background-color 120ms ease;
+    }
+
+    a.imdb-result-card:hover {
+        border-color: var(--primary-color);
+        background: rgba(128, 128, 128, 0.06);
         cursor: pointer;
     }
 
-    div[class*="st-key-imdb-card-"] [data-testid="stLinkButton"] a:focus-visible {
-        opacity: 1;
+    a.imdb-result-card:focus-visible {
         outline: 3px solid var(--primary-color);
         outline-offset: 3px;
     }
 
-    div[class*="st-key-imdb-card-"]:hover {
-        cursor: pointer;
+    .imdb-result-title {
+        font-weight: 700;
+        font-size: 1.05rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .imdb-result-meta, .imdb-result-origin {
+        color: var(--text-color);
+        opacity: 0.75;
+        font-size: 0.875rem;
+        margin-bottom: 0.35rem;
+    }
+
+    .imdb-result-rating {
+        margin-top: 0.5rem;
+        font-size: 0.9rem;
     }
     </style>
     """,
@@ -522,27 +528,37 @@ if results:
 
         card_col, action_col = st.columns([5, 1])
         with card_col:
-            # Use native Streamlit elements instead of embedding raw HTML.
-            # This avoids HTML being surfaced as literal code by Markdown
-            # rendering/sanitization and keeps the result card accessible.
-            with st.container(border=True, key=f"imdb-card-{index}"):
-                st.text(title)
-                st.caption(f"{year} · {title_type} · {runtime}")
-                st.write(genres.replace(" • ", " · "))
-                if origin_details:
-                    st.caption(" · ".join(
-                        detail.replace("Original-title ", "")
-                        for detail in origin_details
-                    ))
-                st.markdown(f"⭐ **{rating}** · {votes} votes · [IMDb ↗]({url})")
-                # A real Streamlit link element receives clicks reliably;
-                # CSS stretches it across the card without covering the action buttons.
-                st.link_button(
-                    f"Open {title} on IMDb",
-                    url,
-                    help=f"Open {title} on IMDb in a new tab",
-                    use_container_width=True,
+            # One real anchor wraps the entire card, so every point on it
+            # navigates normally. Action buttons remain in the separate column.
+            origin_html = ""
+            if origin_details:
+                origin_text = " · ".join(
+                    detail.replace("Original-title ", "")
+                    for detail in origin_details
                 )
+                origin_html = (
+                    f'<div class="imdb-result-origin">{html.escape(origin_text)}</div>'
+                )
+
+            st.markdown(
+                f"""
+                <a class="imdb-result-card" href="{html.escape(url, quote=True)}"
+                   target="_blank" rel="noopener noreferrer"
+                   aria-label="Open {html.escape(title, quote=True)} on IMDb">
+                    <div class="imdb-result-title">{html.escape(title)}</div>
+                    <div class="imdb-result-meta">
+                        {year} · {title_type} · {html.escape(runtime)}
+                    </div>
+                    <div>{genres.replace(" • ", " · ")}</div>
+                    {origin_html}
+                    <div class="imdb-result-rating">
+                        ⭐ <strong>{html.escape(str(rating))}</strong> ·
+                        {html.escape(str(votes))} votes · IMDb ↗
+                    </div>
+                </a>
+                """,
+                unsafe_allow_html=True,
+            )
 
         with action_col:
             if st.button("↻ Replace", key=f"replace_{index}", use_container_width=True):
