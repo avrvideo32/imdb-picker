@@ -327,8 +327,9 @@ discovery_strength = 80
 if generation_mode == "Discovery":
     st.caption(
         "Discovery balances popularity, rating, decade, genre and—when available—"
-        "original-title region and language. It samples a bounded random candidate "
-        "pool, then chooses titles that fill underrepresented categories."
+        "IMDb title AKA region and language clues. These describe title variants, "
+        "not necessarily the film's production country. It samples a bounded random "
+        "candidate pool, then chooses titles that fill underrepresented categories."
     )
     discovery_strength = st.slider(
         "Diversity strength",
@@ -432,9 +433,9 @@ if generate_btn:
             if generation_mode == "Discovery" and not region_count and not language_count:
                 st.info(
                     "Geographic clues aren't available in the currently hosted "
-                    "IMDb cache yet. Run the repository's weekly dataset-update "
-                    "workflow once to add original-title region and language. "
-                    "Popularity, rating, decade and genre diversity are active now."
+                    "IMDb cache for these filters. Popularity, rating, decade and "
+                    "genre diversity are still active. The updater now derives these "
+                    "clues from the first available AKA records."
                 )
             st.session_state["last_results"] = df.to_dict("records")
             st.session_state["last_total"] = total

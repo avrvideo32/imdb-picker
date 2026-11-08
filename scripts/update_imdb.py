@@ -61,15 +61,22 @@ def create_dataset(basics_file, ratings_file, akas_file, parquet_file):
         con.execute(
             f"""
             COPY (
-                WITH original_akas AS (
+                WITH aka_metadata AS (
                     SELECT
                         titleId,
-                        arg_min(region, TRY_CAST(ordering AS INTEGER))
-                            AS originalTitleRegion,
-                        arg_min(language, TRY_CAST(ordering AS INTEGER))
-                            AS originalTitleLanguage
+                        arg_min(
+                            NULLIF(region, '\\N'),
+                            TRY_CAST(ordering AS INTEGER)
+                        ) FILTER (
+                            WHERE region IS NOT NULL AND region <> '\\N'
+                        ) AS originalTitleRegion,
+                        arg_min(
+                            NULLIF(language, '\\N'),
+                            TRY_CAST(ordering AS INTEGER)
+                        ) FILTER (
+                            WHERE language IS NOT NULL AND language <> '\\N'
+                        ) AS originalTitleLanguage
                     FROM read_csv_auto('{akas_path}', delim='\\t')
-                    WHERE TRY_CAST(isOriginalTitle AS INTEGER) = 1
                     GROUP BY titleId
                 )
                 SELECT
@@ -89,7 +96,7 @@ def create_dataset(basics_file, ratings_file, akas_file, parquet_file):
                 FROM read_csv_auto('{basics_path}', delim='\\t') b
                 LEFT JOIN read_csv_auto('{ratings_path}', delim='\\t') r
                     USING (tconst)
-                LEFT JOIN original_akas a
+                LEFT JOIN aka_metadata a
                     ON a.titleId = b.tconst
                 WHERE b.titleType IN ('movie', 'tvMovie', 'tvSeries', 'tvMiniSeries')
             ) TO '{parquet_path}' (FORMAT PARQUET);
@@ -141,6 +148,13 @@ def create_dataset(basics_file, ratings_file, akas_file, parquet_file):
             FROM {parquet_ref}
             """
         ).fetchone()
+
+        if region_count == 0 and language_count == 0:
+            raise RuntimeError(
+                "Dataset validation failed: IMDb title.akas contains no usable "
+                "region or language metadata. Refusing to publish an empty "
+                "geographic/language dataset."
+            )
 
         size = Path(parquet_file).stat().st_size
         if size <= 0:

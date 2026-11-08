@@ -162,7 +162,7 @@ def select_diverse_picks(candidates, num_picks, diversity_strength=80):
     Greedily choose titles that cover underrepresented categories.
 
     Each selected title updates popularity, rating, decade, genre, original
-    title region and original title language counts. Genre contributes all
+    title region and IMDb AKA language counts. Genre contributes all
     IMDb genre tags but only its least-represented tag determines the score.
     """
     remaining = [dict(row) for row in candidates]

@@ -7,7 +7,7 @@ A Streamlit app for exploring IMDb titles with configurable filters and controll
 - Filter by title type, genre, decade, exact year, IMDb rating, vote count, runtime and title text.
 - Choose whether multiple included genres mean **Any** (OR) or **All** (AND).
 - Use **Standard Random** to select a random batch from the filtered pool.
-- Use **Discovery** to balance popularity, rating, decade, genre, original-title region and original-title language where available.
+- Use **Discovery** to balance popularity, rating, decade, genre, IMDb AKA region and language clues where available.
 - Sort the generated batch by rating, votes, year, runtime or title.
 - Import an IMDb watched-list CSV (the standard IMDb export includes a Const column) and exclude those titles.
 - Replace one pick without regenerating the rest of the batch.
@@ -36,12 +36,12 @@ Discovery first applies all active filters, then calculates popularity and ratin
 - IMDb rating quartile (lower through higher rated).
 - Release decade.
 - IMDb genre tags. Multi-genre titles can contribute to more than one genre.
-- Original-title region from IMDb's `title.akas` data.
-- Original-title language from the same original-title record.
+- First available title-variant region from IMDb's `title.akas` data.
+- First available title-variant language from the same dataset (possibly a different AKA row).
 
 The **Diversity strength** slider controls the trade-off. At 0, picks are random from the candidate sample. At 100, the selector strongly favors categories not yet represented in the current batch. Intermediate values mix both approaches.
 
-The region is an original-title metadata region, **not a verified production country**. IMDb's public non-commercial datasets do not provide a production-country field. The app deliberately avoids presenting title-release regions as production countries.
+The region and language are metadata about IMDb title variants (AKAs), not verified production country or necessarily the original language. IMDb's public non-commercial datasets do not provide a production-country field. The app uses these values only as rough diversity clues.
 
 The sort dropdown is applied after the diverse batch is selected. It changes the order, not the selection criteria, and it does not rank the entire eligible database or guarantee that globally highest-rated titles are returned.
 
@@ -52,7 +52,7 @@ The weekly GitHub Actions workflow runs scripts/update_imdb.py. Configure these 
 - HF_TOKEN: a Hugging Face token with permission to write to the dataset repository.
 - HF_REPO_ID: the target dataset repository ID, for example Avrozavr/Imdb.
 
-The updater downloads IMDb's title.basics, title.ratings and title.akas files with retries and timeouts, builds a temporary Parquet file, extracts the region and language for original-title entries, validates the schema and unique title IDs, and only then uploads it. The additional title.akas download is substantially larger than the ratings file. After deploying the new code, run the **Weekly IMDb Dataset Update** workflow once from GitHub Actions to populate the new region/language columns; the app remains compatible with the older cache until then. A failed download or validation does not publish a partial dataset.
+The updater downloads IMDb's title.basics, title.ratings and title.akas files with retries and timeouts, builds a temporary Parquet file, extracts the first available region and language from each title's AKA records, validates the schema and unique title IDs, and only then uploads it. The additional title.akas download is substantially larger than the ratings file. After deploying the new code, run the **Weekly IMDb Dataset Update** workflow once from GitHub Actions to populate the new region/language columns; the app remains compatible with the older cache until then. A failed download or validation does not publish a partial dataset.
 
 ## Notes
 
