@@ -80,16 +80,6 @@ def create_dataset(basics_file, ratings_file, akas_file, parquet_file):
                     GROUP BY titleId
                 )
                 SELECT
-                        titleId,
-                        arg_min(region, TRY_CAST(ordering AS INTEGER))
-                            AS originalTitleRegion,
-                        arg_min(language, TRY_CAST(ordering AS INTEGER))
-                            AS originalTitleLanguage
-                    FROM read_csv_auto('{akas_path}', delim='\\t')
-                    WHERE TRY_CAST(isOriginalTitle AS INTEGER) = 1
-                    GROUP BY titleId
-                )
-                SELECT
                     b.tconst,
                     COALESCE(b.primaryTitle, '\\N') AS primaryTitle,
                     COALESCE(b.originalTitle, '\\N') AS originalTitle,
